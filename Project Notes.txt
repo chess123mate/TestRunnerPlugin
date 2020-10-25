@@ -1,0 +1,5 @@
+When changing some things, this file lists side effects to be aware of.
+
+- Plugin name hardcoded in GenPluginErrHandler.lua and default.project.json
+- ComparisonCode source is read by Comparison in a particular way
+x

@@ -1,0 +1,14 @@
+{
+	"name": "TestRunnerPlugin",
+	"tree": {
+		"$className": "DataModel",
+		"ServerStorage": {
+			"$className": "ServerStorage",
+			"$ignoreUnknownInstances": true,
+			"TestRunnerPlugin": {
+				"$className": "Folder",
+				"$path": "src"
+			}
+		}
+	}
+}
