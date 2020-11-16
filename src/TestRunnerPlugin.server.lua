@@ -88,23 +88,37 @@ local setupToolbar, guiCleanup do
 	end
 end
 
+local testVariants
 local function tryRunningTests()
 	local folder = game:GetService("ServerScriptService"):FindFirstChild("__TestRunnerPluginTests")
 	if not folder then return end
-	local clone = folder:Clone()
-	clone.Parent = folder.Parent
-	folder:Destroy()
-	for _, obj in ipairs(clone:GetChildren()) do
+	testVariants = testVariants or require(modules.Variant).Storage.new()
+	for _, obj in ipairs(folder:GetChildren()) do
 		if obj:IsA("ModuleScript") then
-			spawn(function()
-				local t = require(obj)[1]
-				if type(t) == "function" then
-					t()
+			local variant = testVariants:Get(obj)
+			local success, value = variant:TryRequire()
+			if success then
+				local test = value[1]
+				if type(test) == "function" then
+					spawn(test) -- each test function can get its own stack trace this way
 				end
-			end)
+			end
 		end
 	end
 end
+
+local testTree
+
+plugin.Unloading:Connect(function()
+	guiCleanup()
+	if testVariants then
+		testVariants:Destroy()
+	end
+	if testTree then
+		testTree:Destroy()
+	end
+	testSettings:Destroy()
+end)
 
 local RunService = game:GetService("RunService")
 if not RunService:IsRunning() then
@@ -124,30 +138,18 @@ setupToolbar()
 local signal = testRunnerScript:WaitForChild("Running", 60)
 if not signal then return end
 
-local TestTree = require(modules.TestTree)
 local Report = require(modules.Report)
-
+local TestTree = require(modules.TestTree)
 local Config = require(modules.Config.Config)
-local listenServiceNames = {
-	-- "Workspace",
-	-- "Players",
-	-- "Lighting",
-	-- "ReplicatedFirst",
-	-- "ReplicatedStorage",
-	-- "ServerScriptService",
-	-- "ServerStorage",
-	-- "StarterGui",
-	-- "StarterPack",
-	-- "StarterPlayer",
-	"TestService",
-}
-local testTree
 
-plugin.Unloading:Connect(function()
-	guiCleanup()
+local reInit
+local function init()
+	testTree = TestTree.new(testSettings, Report, reInit)
+end
+function reInit()
 	testTree:Destroy()
-	testSettings:Destroy()
-end)
+	init()
+end
 
 do -- Give other scripts a chance to run so as to not impact the run time of the tests nor the TestRunner
 	-- Experimenting discovered that a large surge of other scripts run during the 2nd wait, so always wait at least twice
@@ -159,5 +161,4 @@ do -- Give other scripts a chance to run so as to not impact the run time of the
 	end
 	print(("TestRunner waited %dms for other scripts"):format((os.clock()-start)*1000))
 end
-
-testTree = TestTree.new(testSettings, listenServiceNames, Config, Report)
+init()

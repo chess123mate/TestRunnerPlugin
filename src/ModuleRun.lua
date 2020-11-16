@@ -10,7 +10,7 @@ local GetModuleName = require(modules.Descriptions).GetModuleName
 
 local Utils = modules.Utils
 local Coroutines = require(Utils.Coroutines)
-local GenPluginErrHandler = require(Utils.GenPluginErrHandler)
+local PluginErrHandler = require(Utils.PluginErrHandler)
 local NewTry = require(Utils.NewTry)
 
 local function genShouldTest(focus, skip)
@@ -76,10 +76,13 @@ function ModuleRun:getTests()
 			end), nil)
 	end, func, self.testsHolder:GetTests(), self.t)
 end
-function ModuleRun:genPluginErrHandler(onError, intro)
-	return GenPluginErrHandler(onError, intro, 
+function ModuleRun:genPluginErrHandler(onError, intro, depth)
+	return PluginErrHandler.Gen(
+		onError,
+		intro,
 		self.testSettings.hideOneLineErrors,
-		self.testSettings.putTracebackInReport)
+		self.testSettings.putTracebackInReport,
+		depth)
 end
 function ModuleRun:runTests()
 	local testsHolder = self.testsHolder
@@ -190,16 +193,25 @@ function ModuleRun:runTest(testName, data, onFinish)
 		local timedOut
 		NewTry(function(try)
 			try
-				:onTimeout(self.config.timeout or 0.2, function()
+				:onTimeout(self.config.timeout, function()
 					print(("Test %s.%s timed out"):format(GetModuleName(self.moduleScript), case.desc))
 					timedOut = true
 					case:SetResult(Results.Failed.new("Timed out"), true) end)
 				:onAsyncStartEnd(
 					function() cos:Add(co) end,
 					function() cos:Remove(co) end)
-				:onError(self:genPluginErrHandler(function(niceMsg, msg, traceback)
-					case:SetResult(Results.Failed.new(niceMsg, traceback))
-				end, ("[%s.%s] "):format(GetModuleName(self.moduleScript), case.desc)))
+				:onError(function(msg)
+					if self.variant.incomingRequireError then
+						local trace = PluginErrHandler.Clean(debug.traceback("", 2))
+						PluginErrHandler.ContinueUserErrorAddTraceback(trace)
+						print(self.variant.incomingRequireError, "|", trace)
+						case:SetResult(Results.Failed.new("Error while requiring: " .. self.variant.incomingRequireError, msg .. "\n" .. trace))
+					else
+						self:genPluginErrHandler(function(niceMsg, msg, traceback)
+							case:SetResult(Results.Failed.new(niceMsg, traceback))
+						end, ("[%s.%s] "):format(GetModuleName(self.moduleScript), case.desc), 3)(msg)
+					end
+				end)
 		end, newFunc, ...)
 	end
 	local function getCaseDesc(caseName)

@@ -1,7 +1,7 @@
 local Box3 = require(game.ServerScriptService.Box3)
 return function(tests, t)
 
-tests.focus = {"Simple"}
+--tests.focus = {"Simple"}
 tests.Simple = function()
 	local b = Box3.new(1, 2, 3)
 	t.equals(b.Sum, 6)

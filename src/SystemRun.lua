@@ -41,7 +41,6 @@ function SystemRun.new(testSettings)
 		order = {}, -- List<Variant>
 	}, SystemRun)
 end
-function SystemRun:GetTestSettings() return self.testSettings end
 function SystemRun:AddTest(config, variant)
 	self.order[#self.order + 1] = variant
 	local function onFinish(result)

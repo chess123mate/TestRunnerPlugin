@@ -17,11 +17,16 @@ local stopAtClassNames = {
 	TestService = true,
 	DataModel = true,
 }
+local includeButStopAtClassNames = {
+	StarterPlayerScripts = true,
+	StarterCharacterScripts = true,
+}
 function Descriptions.GetModuleName(m) -- Variant of :GetFullName()
 	local path = {m}
 	local parent = m.Parent
 	while parent and not stopAtClassNames[parent.ClassName] do
 		path[#path + 1] = parent
+		if includeButStopAtClassNames[parent.ClassName] then break end
 		parent = parent.Parent
 	end
 	local name = {}

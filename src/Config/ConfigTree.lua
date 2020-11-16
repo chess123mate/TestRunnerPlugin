@@ -34,6 +34,18 @@ function ConfigTree:GetFor(value)
 	end
 	return e
 end
+function ConfigTree:GetOriginatingValueForKey(value, key)
+	--	Returns the value that is associated with the config that provided the specified key for "value"'s config (returns nil if it came from the default)
+	local valueToConfig = self.valueToConfig
+	while value do
+		local config = valueToConfig[value]
+		if config and config[key] then
+			return value
+		end
+		value = self.getParent(value)
+	end
+	return nil
+end
 function ConfigTree:SetConfig(value, config)
 	self.valueToConfig[value] = config
 end

@@ -1,10 +1,13 @@
--- GenPluginErrHandler - for simulating Roblox errors (but more concisely) while keeping plugin lines out of the traceback as appropriate
+-- PluginErrHandler - for simulating Roblox errors (but more concisely) while keeping plugin lines out of the traceback as appropriate
 local TestService = game:GetService("TestService")
+local PluginErrHandler = {}
 local function startTransform(traceback)
 	--	will add an initial newline for easy searching
 	return ("\n" .. traceback)
 		:gsub("\nScript '(.*-)', Line (%d+)", "\n%1:%2") -- a bit more concise
 		:gsub("\nTestService%.", "\n") -- The line will always start with TestService anyway
+		:gsub("\nStarterPlayer%.StarterPlayerScripts%.", "\nStarterPlayerScripts.")
+		:gsub("\nStarterPlayer%.StarterCharacterScripts%.", "\nStarterCharacterScripts.")
 		--	The error msg line may not in the report, but I think this is okay
 end
 local function keepPluginLines(traceback)
@@ -21,16 +24,21 @@ local function removePluginLines(traceback)
 		:gsub("\n+$", "") -- prevent showing '...' at the end
 		:gsub("\n\n+", "\n...\n") -- 2+ newlines only occurs when removing plugin lines, so replace with '...'
 end
-
-local function GenPluginErrHandler(onError, intro, hideOneLiner, hideAll)
-	--	onError(niceErrMsg, msg, traceback, originalErrMsg) -- optional
+function PluginErrHandler.ContinueUserErrorAddTraceback(traceback)
+	for line in string.gmatch(removePluginLines(traceback), "[^\n]+") do
+		TestService:Message(line)
+	end
+end
+PluginErrHandler.Clean = removePluginLines
+function PluginErrHandler.Gen(onError, intro, hideOneLiner, hideAll, depth)
+	--	onError(niceErrMsg, msg, traceback) -- optional
 	--		msg is what was actually output (except for 'intro')
 	--		niceErrMsg is rearranged so that the problem shows up first, then the path & line number
-	--		traceback is what was shown to the user (can be the empty string)
+	--		traceback is roughly what was shown to the user (can be the empty string)
 	--	intro (optional) is the initial text for any error message emitted to the Output window
 	--	hideOneLiner: if true and there is no traceback, the error is not printed
 	return function(origMsg)
-		local traceback = debug.traceback("", 2) -- no message, depth 2 to ignore this error handler
+		local traceback = debug.traceback("", depth or 2) -- no message, depth 2 to ignore this error handler
 		local msg = keepPluginLines(tostring(origMsg))
 		-- User code can make the 'msg' refer to the plugin by setting the error depth high enough,
 		--	so don't trust 'msg' for determining if the error came from this plugin
@@ -66,4 +74,4 @@ local function GenPluginErrHandler(onError, intro, hideOneLiner, hideAll)
 		if onError then onError(niceErr, msg, traceback, origMsg) end
 	end
 end
-return GenPluginErrHandler
+return PluginErrHandler

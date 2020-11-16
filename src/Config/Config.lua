@@ -6,7 +6,6 @@ function Config.new(config)
 	return setmetatable(config or {}, Config)
 end
 
-
 local ConfigType = {}
 ConfigType.__index = ConfigType
 function ConfigType.new(valueType, desc)
@@ -47,7 +46,49 @@ local function new(name, configType, default, doc)
 		Doc = doc,
 	}
 end
+local function Function(defaultFunc, defaultToString)
+	local Function = ConfigType.new("function")
+	function Function.ValueToString(value)
+		return value == defaultFunc and defaultToString or error("Not supported")
+	end
+	return Function
+end
+local function newFunc(name, doc)
+	local module = script.Parent["Default" .. name]
+	local default = require(module)
+	return {
+		Name = name,
+		Type = Function(default, module.Source:sub(8)), -- :sub(8) skips "return "
+		Default = default,
+		Doc = doc,
+	}
+end
 
+local commonServiceNames = {
+	"Workspace",
+	"ReplicatedFirst",
+	"ReplicatedStorage",
+	"ServerScriptService",
+	"ServerStorage",
+	"StarterGui",
+	"StarterPack",
+	"StarterPlayer",
+	"TestService",
+}
+local defaultListenServiceNames = {
+	"TestService",
+}
+local GetSearchArea = newFunc("GetSearchArea", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in.")
+local base = GetSearchArea.Type.Validate
+function GetSearchArea.Type.Validate(value)
+	local success, problem = base(value)
+	if not success then return problem end
+	local problem = Config.ProblemsWithUserSearchArea(value(commonServiceNames))
+	if problem then
+		return false, "GetSearchArea(): " .. problem
+	end
+	return true, value
+end
 local configOptions = {
 	new("requireTimeout", Number, 0.5, "A module times out if it hasn't returned from its require after this many seconds"),
 			--"Seconds for a test module to return from its initial require before timing out"),
@@ -56,6 +97,10 @@ local configOptions = {
 	new("timeout", Number, 2, "Seconds for a test to complete before timing out"),
 	new("skip", List, nil, "The list of test module names to skip over. You can specify the module path (up to but *not* including TestService) as well."),
 	new("focus", List, nil, "If any test module names (or paths) are in this list, only they are run, regardless of what Skip contains."),
+	GetSearchArea,
+	newFunc("SearchShouldRecurse", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in."),
+	newFunc("MayBeTest", "(For TestService.TestConfig only) Given a module script, return true if it could be a test script. Use this to filter scripts based on their name."),
+	newFunc("GetSetupFunc", "(For TestService.TestConfig only) Given a module script and its required value, return either the setup function or a falsy value if it is not a test.")
 }
 local default = {}
 for _, o in ipairs(configOptions) do
@@ -67,6 +112,9 @@ Config.__index = function(self, key)
 	return v
 end
 Config.Default = default
+Config.IsDefault = function(config, key)
+	return config[key] == default[key]
+end
 -- local runAllList = {"requireTimeout", "initTimeout", "timeout"}
 -- function Config.OnConfigChange(testConfig, old, new, testConfigTree, actions)
 --	-- (In future, *could* go through runAllList, then analyze skip/focus to help determine what to rerun)
@@ -76,6 +124,60 @@ Config.Default = default
 -- 	end
 --	-- etc
 -- end
+
+function Config.GetSearchAreaFromModule(moduleScript)
+	--	moduleScript can be nil
+	if moduleScript and moduleScript:IsA("ModuleScript") then
+		local success, config = pcall(require, moduleScript:Clone())
+		if success then
+			return Config.GetSearchArea(config, moduleScript)
+		else
+			warn(moduleScript:GetFullName(), "errored with:", config)
+		end
+	end
+	return defaultListenServiceNames
+end
+function Config.GetSearchArea(config, moduleScript)
+	--	moduleScript: for warning purposes. Provide nil to silence the warning.
+	if type(config) ~= "table" then
+		if moduleScript then warn(moduleScript:GetFullName(), "did not return a config table") end
+	else
+		local func = config.GetSearchArea
+		if type(func) ~= "function" then
+			if func ~= nil and moduleScript then warn(moduleScript:GetFullName() .. ".GetSearchArea is not a function") end
+		else
+			local success, value = pcall(config.GetSearchArea, commonServiceNames)
+			if success then
+				local problem = Config.ProblemsWithUserSearchArea(value)
+				if problem then
+					if moduleScript then warn(moduleScript:GetFullName() .. ".GetSearchArea(commonServiceNames) returned '" .. tostring(value) .. "', but", problem) end
+				else
+					return value
+				end
+			else
+				if moduleScript then warn(moduleScript:GetFullName() .. ".GetSearchArea(commonServiceNames) failed:", value) end
+			end
+		end
+	end
+	return defaultListenServiceNames
+end
+function Config.ProblemsWithUserSearchArea(searchArea)
+	--	Returns a problem string if there's something wrong, else nil
+	if type(searchArea) ~= "table" then
+		return "it must return a table"
+	elseif #searchArea == 0 then
+		return "it is empty"
+	else
+		for i, v in ipairs(searchArea) do
+			if type(v) ~= "string" then
+				return ("[%d] = %s instead of a string"):format(i, v)
+			end
+			if not pcall(game.GetService, game, v) then
+				return v .. " is not a valid service"
+			end
+		end
+	end
+end
 
 function Config.GetDocs(header)
 	--	Get the documentation for the configuration options
@@ -122,6 +224,22 @@ function Config.Validate(config)
 		end
 	end
 	return #problems > 1 and table.concat(problems, "\n    - ") or nil, newConfig
+end
+function Config.GetConfigFromModule(moduleScript)
+	--	moduleScript can be nil
+	if moduleScript and moduleScript:IsA("ModuleScript") then
+		local success, config = pcall(require, moduleScript:Clone())
+		if success then
+			local problems, config = Config.Validate(config)
+			if problems then
+				warn(moduleScript:GetFullName(), "is invalid:", problems)
+			end
+			return config
+		-- else -- As of Nov 2020, the error is being displayed despite being in a pcall
+		-- 	warn(moduleScript:GetFullName(), "errored with:", config)
+		end
+	end
+	return Config.new()
 end
 
 return Config

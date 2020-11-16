@@ -23,6 +23,7 @@ Limitations:
 - Error output will always have "TestService:" at the beginning of every line, unless it came from an untracked coroutine
 	On the plus side, the error output and traceback is more concise and includes which test the error occurred in
 - The final report will include the ms it took to run the tests. This will be inflated dramatically if there are a lot of errors (or a ton of output) printed out, or if tests yield for a while.
+- Roblox allows you to require destroyed ModuleScripts, but this system assumes that you will not rely on this behaviour.
 
 ]=], header("Creating Tests"), [=[
 

@@ -83,10 +83,12 @@ MInstance.props = {
 		function(self, value)
 			local oldParent = self.parent
 			if oldParent == value then return end
-			if self == value then
-				error(("Attempt to set %s as its own parent"):format(self:GetFullName()), 2)
-			elseif self:IsAncestorOf(value) then
-				error(("Attempt to set parent of %s to %s would result in circular reference"):format(self:GetFullName(), value:GetFullName()), 2)
+			if value then
+				if self == value then
+					error(("Attempt to set %s as its own parent"):format(self:GetFullName()), 2)
+				elseif self:IsAncestorOf(value) then
+					error(("Attempt to set parent of %s to %s would result in circular reference"):format(self:GetFullName(), value:GetFullName()), 2)
+				end
 			end
 			if oldParent then
 				self.parent = nil
