@@ -97,8 +97,9 @@ local configOptions = {
 	new("timeout", Number, 2, "Seconds for a test to complete before timing out"),
 	new("skip", List, nil, "The list of test module names to skip over. You can specify the module path (up to but *not* including TestService) as well."),
 	new("focus", List, nil, "If any test module names (or paths) are in this list, only they are run, regardless of what Skip contains."),
+	new("expectedFirst", Bool, nil, "If true, it's t.equals(expected, actual) instead of t.equals(actual, expected)"),
 	GetSearchArea,
-	newFunc("SearchShouldRecurse", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in."),
+	newFunc("SearchShouldRecurse", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in (which you can simply return if you want)."),
 	newFunc("MayBeTest", "(For TestService.TestConfig only) Given a module script, return true if it could be a test script. Use this to filter scripts based on their name."),
 	newFunc("GetSetupFunc", "(For TestService.TestConfig only) Given a module script and its required value, return either the setup function or a falsy value if it is not a test.")
 }
@@ -185,8 +186,10 @@ function Config.GetDocs(header)
 	local configDocs = {
 		header("Configuration"), [=[
 
-You can configure this system using a TestConfig ModuleScript (its parent should be TestService).
-It must return a table with any of the following fields (all optional; the values below are the defaults):
+You can configure this system using ModuleScripts named "TestConfig".
+A TestConfig applies to all tests found in its siblings and their descendants (but another TestConfig can override it on a per-property basis).
+If a TestConfig's parent is the TestService, it becomes the default TestConfig for the entire game, not just TestService.
+These configuration scripts must return a table with any of the following fields (all optional; the values below are the defaults):
 
 return {]=]
 	}

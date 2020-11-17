@@ -30,6 +30,9 @@ function PluginErrHandler.ContinueUserErrorAddTraceback(traceback)
 	end
 end
 PluginErrHandler.Clean = removePluginLines
+local function getScriptAndLineNum(line)
+	return line:match("%w+:%d+%f[%D]")
+end
 function PluginErrHandler.Gen(onError, intro, hideOneLiner, hideAll, depth)
 	--	onError(niceErrMsg, msg, traceback) -- optional
 	--		msg is what was actually output (except for 'intro')
@@ -54,7 +57,7 @@ function PluginErrHandler.Gen(onError, intro, hideOneLiner, hideAll, depth)
 			-- The previous match would get incorrect results if someone
 			--	named their script something like ":123: "
 		end
-		if not hideAll and (not hideOneLiner or traceback:find("\n") or not msg:find(traceback)) then
+		if not hideAll and (not hideOneLiner or traceback:find("\n") or getScriptAndLineNum(msg) ~= getScriptAndLineNum(traceback)) then
 			if intro then
 				TestService:Error(tostring(intro) .. msg)
 			else

@@ -14,17 +14,13 @@ end
 
 local actual = expectedFirst and "expected" or "actual"
 local expected = expectedFirst and "actual" or "expected"
-local function actualNotExpectedCore(a, op, b)
-	return ("(%s) %s %s %s (%s)"):format(actual, describe(a), op, describe(b), expected)
-end
 local function actualNotExpected(a, op, b, ...)
-	return appendMsg(actualNotExpectedCore(a, op, b), ...)
+	return appendMsg(string.format("(%s) %s %s %s (%s)", actual, describe(a), op, describe(b), expected), ...)
 end
 
-local c; c = { -- each should return error msg if something is wrong, else nil/false
+local c; c = { -- each comparison should return error msg if something is wrong, else nil/false
 	describe = describe,
 	actualNotExpected = actualNotExpected,
-	actualNotExpectedCore = actualNotExpectedCore,
 	type = function(value, theType, prefixMsg) -- Most comparisons have "..." that are appended to the error message to describe what the test is about
 		return type(theType) ~= "string" and ("2nd argument to t.type must be value string; received %s"):format(tostring(theType))
 			or type(value) ~= theType and ("%s%s%s (type '%s') is not of type '%s'"):format(prefixMsg or "", prefixMsg and " " or "", describe(value), type(value), theType)
@@ -52,7 +48,7 @@ local c; c = { -- each should return error msg if something is wrong, else nil/f
 	end,
 	listsSameLength = function(a, b, ...)
 		return c.type(a, "table", "1st argument") or c.type(b, "table", "2nd argument")
-			or #a ~= #b and appendMsg(("Unequal table lengths: %s for %s and %s respectively"):format(actualNotExpectedCore(#a, "~=", #b), describe(a), describe(b)), ...)
+			or #a ~= #b and appendMsg(("Unequal table lengths: %s for %s and %s respectively"):format(actualNotExpected(#a, "~=", #b), describe(a), describe(b)), ...)
 	end,
 	listsEqual = function(a, b, ...)
 		local v = c.listsSameLength(a, b, ...)

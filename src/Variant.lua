@@ -20,7 +20,7 @@ local TestService = game:GetService("TestService")
 local Variant = {}
 Variant.__index = Variant
 
-local variantCode = "return function(script, require) %s end"
+local variantCode = "return function(script, require) %s\nend" -- must have 'end' on new line in case there's a comment on the last line
 
 local VariantStorage = {}
 Variant.Storage = VariantStorage

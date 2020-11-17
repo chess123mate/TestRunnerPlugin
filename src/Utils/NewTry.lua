@@ -36,13 +36,13 @@ return function(setupTry, func, ...)
 		if success then
 			onSuccess(...)
 		end
-		--(success and onSuccess or onFail)(...)
 		finally()
 	end
 	-- Using coroutine.wrap allows Roblox to output errors if something goes wrong in user code
 	coroutine.wrap(function(...)
 		co = coroutine.running()
 		interpretResults(xpcall(func, errorHandler, ...))
+		--interpretResults(true, func(...)) -- DEBUG
 	end)(...)
 	if coroutine.status(co) ~= "dead" then
 		async = true

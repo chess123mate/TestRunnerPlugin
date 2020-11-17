@@ -14,8 +14,11 @@ local function install()
 	testRunnerScript = Instance.new("Script")
 	testRunnerScript.Name = "TestRunner"
 	testRunnerScript.Parent = TestService
-	modules.UserDocumentation.ExampleTests:Clone().Parent = testRunnerScript
+	for _, c in ipairs(modules.UserDocumentation:GetChildren()) do
+		c:Clone().Parent = testRunnerScript
+	end
 	startupWhenInstalled()
+	plugin:OpenScript(testRunnerScript)
 end
 local function onAlreadyInstalled()
 	local signal = testRunnerScript:FindFirstChild("Running")
@@ -72,7 +75,6 @@ local setupToolbar, guiCleanup do
 					print("TestRunner is already installed in this place.")
 				else
 					install()
-					print("TestRunner has been installed. You can read the documentation in TestService.TestRunner.")
 				end
 				-- Unfortunately we can't destroy the button or the toolbar
 				installButton:SetActive(false)

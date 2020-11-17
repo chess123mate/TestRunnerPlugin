@@ -21,7 +21,7 @@ function Comparisons.GetDocs(header)
 		header("Available Assertions"), [=[
 
 In the below functions, 'a' and 'b' are for 'actual' and 'expected'.
-By default, 'actual' comes first, but this can be changed with t.expectedFirst() on a per-test basis or with TestConfig.
+By default, 'actual' comes first, but this can be changed by having 'expectedFirst = true' in the relevant TestConfig.
 ]=]}
 	local startedAliases = false
 	local allowNewlines = false -- don't allow blank lines until we have at least 1 line of content

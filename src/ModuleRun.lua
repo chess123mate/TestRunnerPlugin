@@ -204,7 +204,6 @@ function ModuleRun:runTest(testName, data, onFinish)
 					if self.variant.incomingRequireError then
 						local trace = PluginErrHandler.Clean(debug.traceback("", 2))
 						PluginErrHandler.ContinueUserErrorAddTraceback(trace)
-						print(self.variant.incomingRequireError, "|", trace)
 						case:SetResult(Results.Failed.new("Error while requiring: " .. self.variant.incomingRequireError, msg .. "\n" .. trace))
 					else
 						self:genPluginErrHandler(function(niceMsg, msg, traceback)

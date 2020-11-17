@@ -22,7 +22,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 			func = name
 			name = nil
 		end
-		if type(func) ~= "function" then error("t.multi requires a function argument") end
+		if type(func) ~= "function" then error("t.multi requires a function argument", 2) end
 		local self = {}
 		local list = {} -- list of tests descriptions/output
 		local anythingFailed = false
@@ -47,17 +47,17 @@ local function newT(testSettings, expectedFirst, moduleScript)
 			local msg = self.report()
 			if msg then
 				if parentMulti then
-					parentMulti.fail(name or "Multitest", msg)
+					parentMulti.fail(msg)
 				else
-					t.fail(header, msg)
+					t.fail(msg)
 				end
 			end
 		end
 		function self.report() -- won't error; safe for nested multi-testing
-			return anythingFailed and ("%s:\n\t%s"):format(header, table.concat(list, "\n\t"))
+			return anythingFailed and ("%s:\n\t%s\t\t"):format(header, table.concat(list, "\n\t"))
 		end
 		setmetatable(self, {
-			__index = function(t, key)
+			__index = function(self, key)
 				if key == "multi" then
 					return function(name, func)
 						t.multi(name, func, self)
@@ -65,7 +65,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 				end
 				local k = tKeys[key]
 				if k then return k end
-				local c = t[key] -- comparison func
+				local c = comparisons[key]
 				if not c then return end
 				return function(desc, ...)
 					if type(desc) ~= "string" then
@@ -128,7 +128,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 		__index = function(t, key)
 			local v = tKeys[key] or cache[key]
 			if v then return v end
-			local c = comparisons[key] -- comparison func
+			local c = comparisons[key]
 			if c then
 				v = genComparisonHandler(c)
 				cache[key] = v
