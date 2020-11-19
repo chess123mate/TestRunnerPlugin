@@ -2,13 +2,21 @@ local TestService = game:GetService("TestService")
 local modules = script.Parent
 local testRunnerScript = TestService:FindFirstChild("TestRunner")
 
+local function checkScriptInjectionError(msg)
+	if not msg:find("script injection") then
+		error(msg, 3)
+	end
+end
+
 local function isInstalled()
 	return testRunnerScript and testRunnerScript.Parent
 end
+local UpdateTestRunnerScript
 local function startupWhenInstalled()
-	require(modules.UpdateTestRunnerScript)
 	TestService.ExecuteWithStudioRun = true
 	TestService.Timeout = 1e8
+	UpdateTestRunnerScript = UpdateTestRunnerScript or require(modules.UpdateTestRunnerScript)
+	xpcall(UpdateTestRunnerScript, checkScriptInjectionError) -- we remain silent unless it errors about something other than script injection
 end
 local function install()
 	testRunnerScript = Instance.new("Script")
@@ -18,7 +26,7 @@ local function install()
 		c:Clone().Parent = testRunnerScript
 	end
 	startupWhenInstalled()
-	plugin:OpenScript(testRunnerScript)
+	print("TestRunner successfully installed! Click Install again to select and open the TestRunner script (includes documentation).")
 end
 local function onAlreadyInstalled()
 	local signal = testRunnerScript:FindFirstChild("Running")
@@ -71,14 +79,31 @@ local setupToolbar, guiCleanup do
 		pluginToolbar = plugin:CreateToolbar("TestRunner")
 		if not isInstalled() then
 			local installButton; installButton = create("Install", "Install TestRunner into this place", function()
-				if isInstalled() then
-					print("TestRunner is already installed in this place.")
-				else
-					install()
-				end
-				-- Unfortunately we can't destroy the button or the toolbar
 				installButton:SetActive(false)
-				installButton.Enabled = false
+				if isInstalled() then
+					game.Selection:Set({testRunnerScript})
+					plugin:OpenScript(testRunnerScript)
+				else
+					xpcall(install, function(msg)
+						checkScriptInjectionError(msg)
+						local alreadyDenied = not (msg:find("prompted") or not msg:find("grant"))
+						print("--------------------------------")
+						print("The Test Runner Plugin requires script injection permission to create TestService.TestRunner scripts.")
+						if alreadyDenied then
+							print("If you'd like automatic installation, you can grant this permission in the Plugin Manager.")
+						else
+							print("If you'd like automatic installation, you can click \"Allow\" on Roblox's popup.")
+						end
+						print("You can disable this permission after the installation is complete - you'll only miss out on automatic updates to the TestRunner script.")
+						print("Alternatively, look up the manual installation instructions (this plugin is open source).")
+						print()
+						warn("***DENY ANY REQUEST FOR ACCESS TO THE INTERNET FROM THIS PLUGIN*** unless you are 100% sure that your test scripts are responsible!")
+						print("This plugin does not use HttpService, but if it finds a potential test script that attempts to use it, you will see the request open up when you enter Run mode.")
+						print("Granting this request could allow a malicious script to steal a copy of your place!")
+						print("--------------------------------")
+					end)
+				end
+				-- Note: we can't destroy the button or the toolbar
 			end)
 		end
 		settingsButton = create("Settings", "Customize Test Runner User Settings", toggleTestSettingsGui)

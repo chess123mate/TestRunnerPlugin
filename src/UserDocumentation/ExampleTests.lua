@@ -36,8 +36,8 @@ function Bucket:Destroy()
 end
 
 -- Normally the Bucket class would be in a different module, so the test file would start after the following line (with the require line enabled).
--- Because of this, I skip the indent after "return function(tests, t)" (just remember to have an 'end' at the bottom of the file!)
--- Note: you may place your require lines after "return function(tests, t)", it won't make a difference.
+-- Because the header of test files is typically very short, I skip the indent after "return function(tests, t)" (just remember to have an 'end' at the bottom of the file!)
+-- Note: you may place your require lines after "return function(tests, t)" and it won't make a difference.
 -----------------------------------------
 -- local Bucket = require(game.ReplicatedStorage.Bucket)
 return function(tests, t)
