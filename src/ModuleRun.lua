@@ -13,10 +13,30 @@ local Coroutines = require(Utils.Coroutines)
 local PluginErrHandler = require(Utils.PluginErrHandler)
 local NewTry = require(Utils.NewTry)
 
+local PluginConfig = require(modules.PluginConfig)
+local IsErrorFromPlugin = require(modules.IsErrorFromPlugin)
+local pluginName = PluginConfig.PluginName
+local tracebackClean = PluginErrHandler.GenClean(pluginName)
+local continueUserErrorAddTraceback = PluginErrHandler.GenContinueUserErrorAddTraceback(pluginName)
+
 local function genShouldTest(focus, skip)
 	return focus and function(testName) return focus[testName] end
 		or skip and function(testName) return not skip[testName] end
 		or function(testName) return true end
+end
+
+local Case = {}
+Case.__index = Case
+function Case.new(name, desc)
+	return setmetatable({
+		name = name, -- note: can be nil for a test without cases, in which case 'desc' is the test name
+		desc = desc,
+		-- start (assigned externally)
+		-- result (assigned cooperatively)
+	}, Case)
+end
+function Case:SetResult(result, suppressPrint)
+	self.result = result:WithDT(os.clock() - self.start)
 end
 
 local ModuleRun = {}
@@ -78,11 +98,13 @@ function ModuleRun:getTests()
 end
 function ModuleRun:genPluginErrHandler(onError, intro, depth)
 	return PluginErrHandler.Gen(
+		pluginName,
 		onError,
 		intro,
 		self.testSettings.hideOneLineErrors,
 		self.testSettings.putTracebackInReport,
-		depth)
+		depth,
+		IsErrorFromPlugin)
 end
 function ModuleRun:runTests()
 	local testsHolder = self.testsHolder
@@ -122,28 +144,11 @@ function ModuleRun:runTests()
 		self.onFinish(Results.Completed.new(testResults))
 	end)
 end
-
-
 function ModuleRun:handlePrintStartOfTest(moduleScript, testCaseDesc)
 	if self.testSettings.printStartOfTests then
 		print(("---%s.%s---"):format(moduleScript.Name, testCaseDesc))
 	end
 end
-
-local Case = {}
-Case.__index = Case
-function Case.new(name, desc)
-	return setmetatable({
-		name = name, -- note: can be nil for a test without cases, in which case 'desc' is the test name
-		desc = desc,
-		-- start (assigned externally)
-		-- result (assigned cooperatively)
-	}, Case)
-end
-function Case:SetResult(result, suppressPrint)
-	self.result = result:WithDT(os.clock() - self.start)
-end
-
 function ModuleRun:runTest(testName, data, onFinish)
 	--	returns the coroutine to wait on for the results to be in
 	local setup, cleanup = data.setup, data.cleanup
@@ -202,8 +207,8 @@ function ModuleRun:runTest(testName, data, onFinish)
 					function() cos:Remove(co) end)
 				:onError(function(msg)
 					if self.variant.incomingRequireError then
-						local trace = PluginErrHandler.Clean(debug.traceback("", 2))
-						PluginErrHandler.ContinueUserErrorAddTraceback(trace)
+						local trace = tracebackClean(debug.traceback("", 2))
+						continueUserErrorAddTraceback(trace)
 						case:SetResult(Results.Failed.new("Error while requiring: " .. self.variant.incomingRequireError, msg .. "\n" .. trace))
 					else
 						self:genPluginErrHandler(function(niceMsg, msg, traceback)

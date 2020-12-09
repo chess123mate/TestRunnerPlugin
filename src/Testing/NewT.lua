@@ -16,8 +16,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 		end
 	end
 	local tKeys = {}
-	function tKeys.multi(name, func, parentMulti) -- multiValueTest; name optional
-		--	parentMulti should never be provided by test code
+	function tKeys.multi(name, func) -- multiValueTest; name optional
 		if not func and type(name) == "function" then
 			func = name
 			name = nil
@@ -26,16 +25,21 @@ local function newT(testSettings, expectedFirst, moduleScript)
 		local self = {}
 		local list = {} -- list of tests descriptions/output
 		local anythingFailed = false
-		local header = name and name .. " multitest failed" or "Multitest failed"
+		local header = name and ("Multitest '%s' failed"):format(name) or "Multitest failed"
 		local function addToResults(desc, key, func, ...)
 			local result = func(...)
 			local args = {...}
 			for i = 1, select("#", ...) do args[i] = Describe(args[i]) end
+			-- Since the whole point of multi is that you want to test multiple things at once,
+			--	we make sure to let the user see all the values they've input into the multi, whether it passed or failed
+			--	ex use case: if you wanted to do an equality check on X, Y, and Z of a Vector3 using 3 different t.equals comparisons.
+			--	(You don't need a multi for Vector3, but custom user objects might need it.)
 			if result then
 				anythingFailed = true
-				list[#list + 1] = (">>> %s%s(%s): %s"):format(desc, key and (": %s"):format(key) or "", table.concat(args, ", "), result)
+				list[#list + 1] = (">>> %s%s(%s) <<<    %s"):format(desc, key and (": %s"):format(key) or "", table.concat(args, ", "), result)
 			else
-				list[#list + 1] = ("%s%s(%s): okay"):format(desc, key and (": %s"):format(key) or "", table.concat(args, ", "))
+				-- This many spaces roughly lines up with after ">>> " in both error text and report text
+				list[#list + 1] = ("        %s%s(%s)"):format(desc, key and (": %s"):format(key) or "", table.concat(args, ", "))
 			end
 		end
 		function self.test(desc, func, ...) -- func returns string describing problem or nil; ... are args to send to func
@@ -43,14 +47,14 @@ local function newT(testSettings, expectedFirst, moduleScript)
 			t.type(func, "function", "func")
 			return addToResults(desc, nil, func, ...)
 		end
+		function self._fail(msg)
+			anythingFailed = true
+			list[#list + 1] = ">>> " .. msg
+		end
 		function self.finish()
 			local msg = self.report()
 			if msg then
-				if parentMulti then
-					parentMulti.fail(msg)
-				else
-					t.fail(msg)
-				end
+				error(msg)
 			end
 		end
 		function self.report() -- won't error; safe for nested multi-testing
@@ -58,11 +62,6 @@ local function newT(testSettings, expectedFirst, moduleScript)
 		end
 		setmetatable(self, {
 			__index = function(self, key)
-				if key == "multi" then
-					return function(name, func)
-						t.multi(name, func, self)
-					end
-				end
 				local k = tKeys[key]
 				if k then return k end
 				local c = comparisons[key]
@@ -71,7 +70,8 @@ local function newT(testSettings, expectedFirst, moduleScript)
 					if type(desc) ~= "string" then
 						error("Multitests must be named", 2)
 					elseif select("#", ...) < (Comparisons.MinArgs[key] or Comparisons.MinArgsDefault) then
-						error("Insufficient args to multitest. (Multitest assertions must be named - did you miss the first argument?)", 2)
+						--print(key, ":", select("#", ...), Comparisons.MinArgs[key] or Comparisons.MinArgsDefault, "|", ...)
+						error(("Insufficient args to multitest.%s. (Multitest assertions must be named - did you miss the first argument?)"):format(key), 2)
 					end
 					addToResults(desc, key, c, ...)
 				end

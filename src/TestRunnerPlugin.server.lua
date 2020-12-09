@@ -36,14 +36,27 @@ local function onAlreadyInstalled()
 	startupWhenInstalled()
 end
 
+local function reRunTests() -- overwritten later if tests are running
+	print("Cannot run tests: TestRunner only runs in Run mode (no clients)")
+end
+
 local testSettings = require(modules.Settings.TestSettings).new(plugin)
-local setupToolbar, guiCleanup do
+local setupToolbar, setupRunningToolbar, guiCleanup do
 	local pluginToolbar
-	local setupToolbarWhenInstalled
 	local function create(text, tooltip, action)
 		local button = pluginToolbar:CreateButton(text, tooltip or "", "")
 		button.ClickableWhenViewportHidden = true
 		return button, action and button.Click:Connect(action)
+	end
+	local function createNoActive(text, tooltip, action)
+		--	Create a button that does not stay active after being clicked
+		local button, con
+		local function action2()
+			button:SetActive(false)
+			if action then action() end
+		end
+		button, con = create(text, tooltip, action2)
+		return button, con
 	end
 	local TestSettingsGui = require(modules.Settings.TestSettingsGui)
 	local testSettingsGui
@@ -75,38 +88,64 @@ local setupToolbar, guiCleanup do
 		end
 		settingsButton:SetActive(settingsWidget.Enabled)
 	end
-	function setupToolbar()
+	--[[
+when NOT running:
+	install (if needed)
+	settings
+when RUNNING (if installed):
+	run
+	settings
+	]]
+	local function setupMainToolbar()
 		pluginToolbar = plugin:CreateToolbar("TestRunner")
-		if not isInstalled() then
-			local installButton; installButton = create("Install", "Install TestRunner into this place", function()
-				installButton:SetActive(false)
-				if isInstalled() then
-					game.Selection:Set({testRunnerScript})
-					plugin:OpenScript(testRunnerScript)
-				else
-					xpcall(install, function(msg)
-						checkScriptInjectionError(msg)
-						local alreadyDenied = not (msg:find("prompted") or not msg:find("grant"))
-						print("--------------------------------")
-						print("The Test Runner Plugin requires script injection permission to create TestService.TestRunner scripts.")
-						if alreadyDenied then
-							print("If you'd like automatic installation, you can grant this permission in the Plugin Manager.")
-						else
-							print("If you'd like automatic installation, you can click \"Allow\" on Roblox's popup.")
-						end
-						print("You can disable this permission after the installation is complete - you'll only miss out on automatic updates to the TestRunner script.")
-						print("Alternatively, look up the manual installation instructions (this plugin is open source).")
-						print()
-						warn("***DENY ANY REQUEST FOR ACCESS TO THE INTERNET FROM THIS PLUGIN*** unless you are 100% sure that your test scripts are responsible!")
-						print("This plugin does not use HttpService, but if it finds a potential test script that attempts to use it, you will see the request open up when you enter Run mode.")
-						print("Granting this request could allow a malicious script to steal a copy of your place!")
-						print("--------------------------------")
-					end)
-				end
-				-- Note: we can't destroy the button or the toolbar
-			end)
-		end
+	end
+	local function setupInstallButton()
+		createNoActive("Install", "Install TestRunner into this place", function()
+			if isInstalled() then
+				game.Selection:Set({testRunnerScript})
+				plugin:OpenScript(testRunnerScript)
+			else
+				xpcall(install, function(msg)
+					checkScriptInjectionError(msg)
+					local alreadyDenied = not (msg:find("prompted") or not msg:find("grant"))
+					print("--------------------------------")
+					print("The Test Runner Plugin requires script injection permission to create TestService.TestRunner scripts.")
+					if alreadyDenied then
+						print("If you'd like automatic installation, you can grant this permission in the Plugin Manager.")
+					else
+						print("If you'd like automatic installation, you can click \"Allow\" on Roblox's popup.")
+					end
+					print("You can disable this permission after the installation is complete - you'll only miss out on automatic updates to the TestRunner script.")
+					print("Alternatively, look up the manual installation instructions (this plugin is open source).")
+					print()
+					warn("***DENY ANY REQUEST FOR ACCESS TO THE INTERNET FROM THIS PLUGIN*** unless you are 100% sure that your test scripts are responsible!")
+					print("This plugin does not use HttpService, but if it finds a potential test script that attempts to use it, you will see the request open up when you enter Run mode.")
+					print("Granting this request could allow a malicious script to steal a copy of your place!")
+					print("--------------------------------")
+				end)
+			end
+			-- Note: we can't destroy the button or the toolbar
+		end)
+	end
+	local function setupRunButton()
+		createNoActive("Run", "Rerun all tests", function()
+			reRunTests()
+		end)
+	end
+	local function setupSettingsButton()
 		settingsButton = create("Settings", "Customize Test Runner User Settings", toggleTestSettingsGui)
+	end
+	function setupToolbar()
+		setupMainToolbar()
+		if not isInstalled() then
+			setupInstallButton()
+		end
+		setupSettingsButton()
+	end
+	function setupRunningToolbar()
+		setupMainToolbar()
+		setupRunButton()
+		setupSettingsButton()
 	end
 	function guiCleanup()
 		if testSettingsGui then
@@ -159,11 +198,15 @@ elseif not RunService:IsRunMode() or not isInstalled() then
 	-- We only want to run tests when installed & the game is running
 	return
 end
-setupToolbar()
+setupRunningToolbar()
 -- We can now wait for TestRunner script to signal that it's running
 --	since RunService doesn't tell us the difference between Run mode and Server mode [as of October 2020]
 local signal = testRunnerScript:WaitForChild("Running", 60)
 if not signal then return end
+
+function reRunTests()
+	-- Do nothing since tests will be loading momentarily
+end
 
 local Report = require(modules.Report)
 local TestTree = require(modules.TestTree)
@@ -189,3 +232,6 @@ do -- Give other scripts a chance to run so as to not impact the run time of the
 	print(("TestRunner waited %dms for other scripts"):format((os.clock()-start)*1000))
 end
 init()
+function reRunTests()
+	testTree:RunAllTests()
+end

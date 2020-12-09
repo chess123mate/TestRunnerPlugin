@@ -72,7 +72,7 @@ function TestTree.new(testSettings, Report, reInit)
 		local config = testConfigTree:GetFor(moduleScript)
 		self.requireTracker:Start(moduleScript)
 		local success, value = variant:TryRequire(config.requireTimeout)
-		if success then -- and type(value) == "function" then
+		if success then
 			local configScript = testConfigTree:GetConfigScriptFor(moduleScript, "GetSetupFunc")
 			success, value = pcall(function() return config.GetSetupFunc(moduleScript, value) end)
 			local function problem(msg)
@@ -327,6 +327,52 @@ local function cloneMSE(t)
 	end
 	return new
 end
+local function filterResultsForNonTests(results, testVariants)
+	local new = Results.new()
+	local n = 0
+	for _, m in ipairs(results) do
+		if testVariants[m.moduleScript] then -- Only keep it if it's still a valid test
+			n += 1
+			new[n] = m
+		end
+	end
+	return new
+end
+local function newLastResults(lastResults, results, testVariants)
+	if lastResults then -- Merge results into lastResults
+		local new = Results.new()
+		local n = 0
+		local moduleScriptToResult = {}
+		-- Store results in moduleScriptToResult
+		-- Then use that to update the "new" lastResults
+		-- Remove it from moduleScriptToResult if it's been dealt with
+		-- Add any remaining moduleScriptToResult to "new" in the order they appear in results
+		for _, m in ipairs(results) do
+			moduleScriptToResult[m.moduleScript] = m
+		end
+		for _, m in ipairs(lastResults) do
+			if testVariants[m.moduleScript] then -- Only keep it if it's still a valid test
+				n += 1
+				local updated = moduleScriptToResult[m.moduleScript]
+				if updated then
+					new[n] = updated
+					moduleScriptToResult[m.moduleScript] = nil
+				else
+					new[n] = m
+				end
+			end
+		end
+		for _, m in ipairs(results) do
+			if moduleScriptToResult[m.moduleScript] then
+				n += 1
+				new[n] = m
+			end
+		end
+		return new
+	else
+		return results
+	end
+end
 function TestTree:performRun(setupTests)
 	if self.destroyed then return end
 	local num = self.testRunNum
@@ -349,50 +395,20 @@ function TestTree:performRun(setupTests)
 	local runTime = os.clock() - s
 	if num ~= self.testRunNum then return end -- Already queueing for or running new test run, so don't print the results of this run
 	local results = currentRun:GetResults()
+	local lastResults = self.lastResults
+	if lastResults then
+		lastResults = filterResultsForNonTests(lastResults, self.testVariants)
+	end
 	local report = self.Report.new(self.testSettings,
 		results,
-		self.lastResults,
+		lastResults,
 		requiringTime,
 		setupTime,
 		runTime,
 		os.clock() - start)
 	report:FullPrint()
 	self.lastReport = report
-	local lastResults = self.lastResults
-	if lastResults then
-		local n = 0
-		local new = Results.new()
-		local moduleScriptToResult = {}
-		-- Store results in moduleScriptToResult
-		-- Then use that to update the "new" lastResults
-		-- Remove it from moduleScriptToResult if it's been dealt with
-		-- Add any remaining moduleScriptToResult to "new" in the order they appear in results
-		for _, m in ipairs(results) do
-			moduleScriptToResult[m.moduleScript] = m
-		end
-		local testVariants = self.testVariants
-		for _, m in ipairs(lastResults) do
-			if testVariants[m.moduleScript] then -- Don't keep it if it's no longer a test
-				n += 1
-				local updated = moduleScriptToResult[m.moduleScript]
-				if updated then
-					new[n] = updated
-					moduleScriptToResult[m.moduleScript] = nil
-				else
-					new[n] = m
-				end
-			end
-		end
-		for _, m in ipairs(results) do
-			if moduleScriptToResult[m.moduleScript] then
-				n += 1
-				new[n] = m
-			end
-		end
-		self.lastResults = new
-	else
-		self.lastResults = results
-	end
+	self.lastResults = newLastResults(lastResults, results, self.testVariants)
 	self.currentRun = nil
 	self.moduleScriptsAtStartOfRun = nil
 end

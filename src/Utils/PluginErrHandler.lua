@@ -8,44 +8,64 @@ local function startTransform(traceback)
 		:gsub("\nTestService%.", "\n") -- The line will always start with TestService anyway
 		:gsub("\nStarterPlayer%.StarterPlayerScripts%.", "\nStarterPlayerScripts.")
 		:gsub("\nStarterPlayer%.StarterCharacterScripts%.", "\nStarterCharacterScripts.")
-		--	The error msg line may not in the report, but I think this is okay
+		--	The error msg line may not be in the report, but I think this is okay
 end
-local function keepPluginLines(traceback)
-	return startTransform(traceback)
-		:gsub("\n[^\n]*(TestRunnerPlugin%.)", "\n%1") -- get rid of "cloud_" prefix (starting on new line only)
-		:gsub("^\n+", "") -- get rid of all initial newlines
-		:gsub("\n+$", "") -- and all ending newlines
-end
-local function removePluginLines(traceback)
-	return startTransform(traceback)
-		:gsub("\n[^\n]*TestRunnerPlugin%.[^\n]+", "\n")
-		:gsub("^\n+", "") -- get rid of all initial newlines
-		--	This also means that we don't show '...' for TestRunnerPlugin code (ex comparisons)
-		:gsub("\n+$", "") -- prevent showing '...' at the end
-		:gsub("\n\n+", "\n...\n") -- 2+ newlines only occurs when removing plugin lines, so replace with '...'
-end
-function PluginErrHandler.ContinueUserErrorAddTraceback(traceback)
-	for line in string.gmatch(removePluginLines(traceback), "[^\n]+") do
-		TestService:Message(line)
+local function genKeepPluginLines(pluginName)
+	local s = "\n[^\n]*(" .. pluginName .. "%.)"
+	return function(traceback)
+		return startTransform(traceback)
+			:gsub(s, "\n%1") -- get rid of "cloud_" prefix (starting on new line only)
+			:gsub("^\n+", "") -- get rid of all initial newlines
+			:gsub("\n+$", "") -- and all ending newlines
 	end
 end
-PluginErrHandler.Clean = removePluginLines
+local function genRemovePluginLines(pluginName)
+	local s = "\n[^\n]*" .. pluginName .. "%.[^\n]+"
+	return function(traceback)
+		return startTransform(traceback)
+			:gsub(s, "\n")
+			:gsub("^\n+", "") -- get rid of all initial newlines
+			:gsub("\n+$", "") -- and all ending newlines
+			:gsub("\n+", "\n") -- remove consecutive newlines (occurs when removing plugin lines)
+	end
+end
+function PluginErrHandler.GenContinueUserErrorAddTraceback(pluginName)
+	local removePluginLines = genRemovePluginLines(pluginName)
+	return function(traceback)
+		for line in string.gmatch(removePluginLines(traceback), "[^\n]+") do
+			TestService:Message(line)
+		end
+	end
+end
+PluginErrHandler.GenClean = genRemovePluginLines
 local function getScriptAndLineNum(line)
 	return line:match("%w+:%d+%f[%D]")
 end
-function PluginErrHandler.Gen(onError, intro, hideOneLiner, hideAll, depth)
+function PluginErrHandler.GenIsErrorFromPlugin(pluginName)
+	local s = "^\n?[^\n]*" .. pluginName .. "%."
+	return function(traceback)
+		return traceback:find(s)
+	end
+end
+
+function PluginErrHandler.Gen(pluginName, onError, intro, hideOneLiner, hideAll, depth, isErrorFromPlugin)
 	--	onError(niceErrMsg, msg, traceback) -- optional
 	--		msg is what was actually output (except for 'intro')
 	--		niceErrMsg is rearranged so that the problem shows up first, then the path & line number
 	--		traceback is roughly what was shown to the user (can be the empty string)
 	--	intro (optional) is the initial text for any error message emitted to the Output window
 	--	hideOneLiner: if true and there is no traceback, the error is not printed
-	return function(origMsg)
+	--	isErrorFromPlugin(traceback):bool (optional) - if it returns true, plugin related traceback lines will not be removed
+	isErrorFromPlugin = isErrorFromPlugin or PluginErrHandler.GenIsErrorFromPlugin(pluginName)
+	local keepPluginLines = genKeepPluginLines(pluginName)
+	local removePluginLines = genRemovePluginLines(pluginName)
+	return function(origMsg, notPluginsFault)
+		--	notPluginsFault guarantees that plugin related traceback lines will be removed
 		local traceback = debug.traceback("", depth or 2) -- no message, depth 2 to ignore this error handler
 		local msg = keepPluginLines(tostring(origMsg))
 		-- User code can make the 'msg' refer to the plugin by setting the error depth high enough,
 		--	so don't trust 'msg' for determining if the error came from this plugin
-		local errorFromPlugin = traceback:find("^[^\n]*TestRunnerPlugin%.")
+		local errorFromPlugin = not notPluginsFault and isErrorFromPlugin(traceback)
 		if errorFromPlugin then
 			traceback = keepPluginLines(traceback)
 		else

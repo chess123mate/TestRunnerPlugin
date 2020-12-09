@@ -15,7 +15,7 @@ return function(setupTry, func, ...)
 		finally(f) -- f() will be called after the try completes
 			This will not run if any of the onSuccess/onTimeout/etc functions error or yield forever
 	]]
-	assert(type(func) == "function", "func must be the function to try")
+	if type(func) ~= "function" then error("func must be the function to try, received: " .. tostring(func), 2) end
 	local self = {}
 	local timeout
 	local onSuccess, onTimeout, finally, onAsyncStart, onAsyncEnd = nothing, nothing, nothing, nothing, nothing

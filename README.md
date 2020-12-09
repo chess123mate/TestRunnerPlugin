@@ -5,19 +5,19 @@ Plugin: <https://www.roblox.com/library/5875325655/Test-Runner-Plugin>
 A Roblox Studio plugin designed to allow rapid development and verification of tests:
 
 - Automatically runs tests when you enter Run mode (ie with no clients)
-	This prevents tests from damaging your game (ex by mutating the workspace).
+  - This prevents tests from damaging your game (ex by mutating the workspace).
 - Tests are rerun when their dependencies (direct or indirect) have been changed
-	If you use script syncing software (such as Rojo), this enables you to have your script changes tested within a second of hitting Ctrl+s!
+  - If you use script syncing software (such as Rojo), this enables you to have your script changes tested within a second of hitting Ctrl+s!
 - Prints reports to the Output Window; designed to give you just the information you need to fix broken tests
 - The system supports asynchronous tests - all test cases are run at the same time.
-	(Note that better practice is to use mocks so that you can simulate waits instead of having to wait in real time.)
+  - (Note that better practice is to use mocks so that you can simulate waits instead of having to wait in real time.)
 
 Limitations:
 
 - The testing system does not track created coroutines, so tests will not reflect errors that occur in them
 - You can't click on error output to jump to a ModuleScript's source
 - Error output will always have "TestService:" at the beginning of every line, unless it came from an untracked coroutine
-	On the plus side, the error output and traceback is more concise and includes which test the error occurred in
+  - On the plus side, the error output and traceback is more concise and includes which test the error occurred in
 - The final report will include the ms it took to run the tests. This will be inflated dramatically if there are a lot of errors (or a ton of output) printed out, or if tests yield for a while.
 - Roblox allows you to require destroyed ModuleScripts, but this system assumes that you will not rely on this behaviour.
 

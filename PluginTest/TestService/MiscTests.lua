@@ -1,7 +1,8 @@
-wait()
+--wait()
+--do return true end
 return function(tests, t)
-	wait()
-	--tests.skip = {"My Test"}
+--	wait()
+	tests.skip = {"NestedMulti"}
 	tests["My Test"] = {
 		setup = function(a, b)
 			--print(a, b)
@@ -28,4 +29,14 @@ return function(tests, t)
 		wait(6)
 	end
 	--]]
+	function tests.NestedMulti()
+		t.multi("Outer", function(m)
+			m.multi("Inner", function(m)
+				m.equals("one", 1, 2)
+				m.equals("three", 3, 3)
+			end)
+			m.equals("two", 2, 2)
+			m.equals("four", 4, 4)
+		end)
+	end
 end

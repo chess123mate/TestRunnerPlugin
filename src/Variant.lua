@@ -15,6 +15,9 @@ local GetModuleName = Descriptions.GetModuleName
 local Utils = modules.Utils
 local NewTry = require(Utils.NewTry)
 local PluginErrHandler = require(Utils.PluginErrHandler)
+local IsErrorFromPlugin = require(modules.IsErrorFromPlugin)
+local pluginName = require(modules.PluginConfig).PluginName
+
 local TestService = game:GetService("TestService")
 
 local Variant = {}
@@ -61,7 +64,7 @@ function Variant.new(variantStorage, moduleScript)
 	--	Note: Prefer to create a storage via Variant.Storage.new and use its :Get() function instead.
 	local self = setmetatable({
 		variantStorage = variantStorage or error("variantStorage mandatory", 2),
-		moduleScript = moduleScript,
+		moduleScript = moduleScript or error("moduleScript mandatory", 2),
 		required = false,
 		-- variant:ModuleScript
 		-- requireFinished:BindableEvent (only exists while requiring)
@@ -80,6 +83,7 @@ function Variant.new(variantStorage, moduleScript)
 			self.required = false
 			self.requiredError = nil
 			self.requiredErrorDuringRequire = nil
+			self.incomingRequireError = nil
 			if self.requireFinished then
 				self.requireFinished:Destroy()
 				self.requireFinished = nil
@@ -167,7 +171,8 @@ local compressedErrorMT = {
 error(setmetatable({msg = "a", traceback = "A:1"}, compressedErrorMT))
 
 ]]
-local pluginErrHandlerDepth3 = PluginErrHandler.Gen(nil, nil, nil, nil, 3)
+
+local pluginErrHandlerDepth3 = PluginErrHandler.Gen(pluginName, nil, nil, nil, nil, 3, IsErrorFromPlugin)
 function Variant:Require(timeout, requiringVariant)
 	--	requiringVariant: for a require nested inside another require
 	local success, value = self:tryRequire(timeout, requiringVariant)
@@ -181,6 +186,7 @@ function Variant:performRequire()
 	--	Returns alreadyErrored, value -- but is likely to error (ex if the required script does)
 	--		value is either the error message (if alreadyErrored) or the value required
 	--		alreadyErrored can be the string "require" if the error happened during a require
+	--		alreadyErrored can also be true if the ModuleScript doesn't return precisely 1 value
 	--	Note: call this function in a 'try' and handle requireFinished:
 	--		on finally: fire it (if it exists) and destroy & remove it (assuming self.version is unchanged)
 	if self.required or self.requireFinished then
@@ -210,10 +216,15 @@ function Variant:performRequire()
 				error("TestRunnerPlugin does not support non-ModuleScript requires", 2)
 			end
 		end
-		return false, require(self.variant)(self.moduleScript, newRequire)
+		local value, extra = require(self.variant)(self.moduleScript, newRequire)
+		if value == nil or extra ~= nil then
+			return true, "Module code did not return exactly one value"
+		end
+		return false, value
 	end
 end
-function Variant:tryRequire(timeout, --[[onDestroyed,]] requiringVariant)
+local continueUserErrorAddTraceback = PluginErrHandler.GenContinueUserErrorAddTraceback(pluginName)
+function Variant:tryRequire(timeout, requiringVariant)
 	if self.destroyed then -- Note: Roblox doesn't error if you require a destroyed ModuleScript, but we don't want to keep testing it
 		self:neverReturn()
 	end
@@ -225,14 +236,14 @@ function Variant:tryRequire(timeout, --[[onDestroyed,]] requiringVariant)
 				if v ~= self.version then self:neverReturn() end
 				if alreadyErrored then
 					errMsg = string.format("%s%s encountered an error while %s: %s",
-						requiringVariant and "(While determining if it's a test) " or "",
+						requiringVariant and "" or "(While determining if it's a test) ",
 						alreadyErrored == "require" and GetModuleName(self.moduleScript) or self.moduleScript.Name, -- We don't need to use GetModuleName because self.requiredError (stored in value) is likely to specify that already
 						alreadyErrored == "require" and "requiring" or "loading",
 						value)
 					if requiringVariant then
 						requiringVariant.incomingRequireError = value
 					end
-					pluginErrHandlerDepth3(errMsg)
+					pluginErrHandlerDepth3(errMsg, true)
 				else
 					self.requiredValue = value
 				end
@@ -242,7 +253,7 @@ function Variant:tryRequire(timeout, --[[onDestroyed,]] requiringVariant)
 				-- As variants require each other, incomingRequireError will be nil for the first "top level" error, then true just long enough to pass the error backwards through the chain without emitting more red text
 				if self.incomingRequireError then
 					self.incomingRequireError = nil
-					PluginErrHandler.ContinueUserErrorAddTraceback(debug.traceback("", 2))
+					continueUserErrorAddTraceback(debug.traceback("", 2))
 					errMsg = msg
 						:gsub("^.-TestRunnerPlugin%.Variant:[^:]-:%s*(.*)", "%1")
 						:gsub("StarterPlayer%.StarterPlayerScripts%.", "StarterPlayerScripts.")
@@ -250,10 +261,10 @@ function Variant:tryRequire(timeout, --[[onDestroyed,]] requiringVariant)
 					self.requiredError = errMsg
 					self.requiredErrorDuringRequire = true
 				else -- top level error
-					PluginErrHandler.Gen(function(msg, b, c, d)
+					PluginErrHandler.Gen(pluginName, function(msg, b, c, d)
 						self.requiredError = msg
 						errMsg = msg
-					end, nil, nil, nil, 3)(msg)
+					end, nil, nil, nil, 3, IsErrorFromPlugin)(msg)
 				end
 				if requiringVariant then
 					requiringVariant.incomingRequireError = errMsg

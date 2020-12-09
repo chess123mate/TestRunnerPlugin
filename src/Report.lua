@@ -21,14 +21,14 @@ local function filterOldResults(oldResults, results)
 	end
 	return #new > 0 and new or nil
 end
-function Report.new(testSettings, results, oldResults, requireTime, setupTime, runTime, totalTime)
+function Report.new(testSettings, results, oldResults, --[[requireTime, setupTime, runTime,]] totalTime)
 	return setmetatable({
 		testSettings = testSettings,
 		results = results, -- List<Result> 
-		oldResults = filterOldResults(oldResults, results),
-		requireTime = requireTime,
-		setupTime = setupTime,
-		runTime = runTime,
+		oldResults = filterOldResults(oldResults, results), -- oldResults:Results that does not contain any no-longer-test module results
+		-- requireTime = requireTime,
+		-- setupTime = setupTime,
+		-- runTime = runTime,
 		totalTime = totalTime,
 	}, Report)
 end
@@ -216,12 +216,12 @@ function Report:PrintSummary()
 	local curTotal = self.results:GetModuleTestCaseCountCache()
 	local oldResults = self.oldResults
 	local grandTotal = oldResults and curTotal:Clone():Add(oldResults:GetModuleTestCaseCountCache()) or curTotal
-	print(("\n%s | %dms | (%dms require, %dms setup, %dms run)"):format(
+	print(("\n%s | %dms "--[[| (%dms require, %dms setup, %dms run)"]]):format(
 		grandTotal.moduleCount:NumTotal() > 0
 			and self:moduleTestCaseCountToString(grandTotal, oldResults and curTotal)
 			or "No tests detected",
-		self.totalTime * 1000,
-		self.requireTime * 1000, self.setupTime * 1000, self.runTime * 1000))
+		self.totalTime * 1000))--,
+		--self.requireTime * 1000, self.setupTime * 1000, self.runTime * 1000))
 end
 
 return Report
