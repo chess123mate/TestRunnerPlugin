@@ -15,7 +15,9 @@ local function newT(testSettings, expectedFirst, moduleScript)
 			end
 		end
 	end
-	local tKeys = {}
+	local tKeys = {
+		comparisons = comparisons,
+	}
 	function tKeys.multi(name, func) -- multiValueTest; name optional
 		if not func and type(name) == "function" then
 			func = name
@@ -92,6 +94,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 		end,
 	}
 	local miscCleanups = {}
+
 	function tKeys.cleanup(obj)
 		--	Automatically clean up 'obj' and return it
 		--	'obj' can be an Instance, event connection, cleanup function, or table with .Destroy or .Disconnect defined on it
@@ -134,7 +137,14 @@ local function newT(testSettings, expectedFirst, moduleScript)
 				cache[key] = v
 				return v
 			end
-		end
+		end,
+		__newindex = function(t, key, value)
+			cache[key] = tKeys[key]
+				and error("Cannot override default comparison functions", 2)
+				or type(value) == "function"
+					and genComparisonHandler(value)
+					or error("may only assign comparison functions to 't'", 2)
+		end,
 	})
 	return t, runMiscCleanups
 end

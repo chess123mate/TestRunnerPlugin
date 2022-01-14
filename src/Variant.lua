@@ -31,7 +31,7 @@ VariantStorage.__index = VariantStorage
 local variantStorageIsTemporaryScript = {} -- VariantStorage -> isTemporaryScript
 local never = function() end
 function VariantStorage.new(storage, isTemporaryScript)
-	--	You can perform `for moduleScript, varaint in pairs(storage) do` on this class
+	--	You can perform `for moduleScript, variant in pairs(storage) do` on this class
 	--	isTemporaryScript:function(moduleScript)->true if the script is temporary and should not invalidate other scripts
 	--		It is assumed that a script can become non-temporary and so it is invoked as needed for each module script
 	--		It defaults to assuming that scripts are never temporary
@@ -162,7 +162,7 @@ The traceback is just going to be A:1
 So it turns out that we can't use `error({})` -- only string values
 	so we have to store this elsewhere
 So we error(compressedError({msg = "a", traceback = "A:1"})) -- which assigns metatable for good __tostring
-Then B's require 
+Then B's require
 so now we have msg "a" with traceback
 
 local compressedErrorMT = {

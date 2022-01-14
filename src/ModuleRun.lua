@@ -31,12 +31,15 @@ function Case.new(name, desc)
 	return setmetatable({
 		name = name, -- note: can be nil for a test without cases, in which case 'desc' is the test name
 		desc = desc,
-		-- start (assigned externally)
+		-- start (assigned externally if case not skipped)
 		-- result (assigned cooperatively)
 	}, Case)
 end
-function Case:SetResult(result, suppressPrint)
+function Case:SetResult(result)
 	self.result = result:WithDT(os.clock() - self.start)
+end
+function Case:Skip()
+	self.result = Results.Skipped.new()
 end
 
 local ModuleRun = {}
@@ -225,28 +228,43 @@ function ModuleRun:runTest(testName, data, onFinish)
 	local function newCase(caseName)
 		return Case.new(caseName, getCaseDesc(caseName))
 	end
-	local function runCases(cases, caseNamePrefix, needUnpack)
+	local function runCases(cases, getCaseName, needUnpack, shouldTestCase)
 		--	Returns true if it ran at least one case
 		if not cases then return end
-		local ran = {}
 		local adjustedRunCase = needUnpack
 			and function(case, args) return runCase(case, unpack(args)) end
 			or runCase
+		local function considerRunCase(caseName, caseData)
+			local case = newCase(caseName)
+			if shouldTestCase(caseName) then
+				adjustedRunCase(case, caseData)
+			else
+				allCases[#allCases + 1] = case
+				case:Skip()
+			end
+		end
+		local ran = {}
 		for i, case in ipairs(cases) do
 			ran[i] = true
-			local caseName = type(case) == "table" and (case.name or case.Name) or (caseNamePrefix .. i)
-			adjustedRunCase(newCase(caseName), case)
-		end	
-		for name, case in pairs(cases) do
-			if not ran[name] then -- else already ran above
-				adjustedRunCase(newCase(name), case)
+			considerRunCase(getCaseName(case, i), case)
+		end
+		for caseName, case in pairs(cases) do
+			if not ran[caseName] then -- else already ran above
+				considerRunCase(caseName, case)
 			end
 		end
 		return next(cases) ~= nil
 	end
-	-- run all cases
-	local a = runCases(data.args, "Arg #", false)
-	local b = runCases(data.argsLists, "ArgsList #", true)
+	local function getArgsCaseName(case, i)
+		return "Arg #" .. i
+	end
+	local function getArgsListCaseName(case, i)
+		return type(case) == "table" and (case.name or case.Name) or ("ArgsList #" .. i)
+	end
+	local focus, skip = self.testsHolder:GetCasesFocusSkip(data, getArgsListCaseName)
+	local shouldTest = genShouldTest(focus, skip)
+	local a = runCases(data.args, getArgsCaseName, false, shouldTest)
+	local b = runCases(data.argsLists, getArgsListCaseName, true, shouldTest)
 	if not a and not b then -- no cases so just run 'func' as-is
 		runCase(newCase())
 	end

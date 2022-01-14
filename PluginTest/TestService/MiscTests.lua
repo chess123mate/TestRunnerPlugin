@@ -18,8 +18,8 @@ return function(tests, t)
 			--t.equals(a, b)
 		end,
 		argsLists = {
-			{name="first", 1, 1},
-			{2, 3},
+			{skip=true,name="first", 1, 1},
+			{skip=true,2, 3},
 			{name="third", 5, 9},
 			{5,5},
 		}

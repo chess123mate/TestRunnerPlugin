@@ -108,8 +108,10 @@ local reportFormats = {
 	end,
 	case = function(self, result)
 		return self:appendReason(("[%s]%s Case %s"):format(
-			result:Passed() and "Passed" or "FAILED",
-			dtToSBracket(result.dt),
+			result:Passed() and "Passed"
+				or result:Failed() and "FAILED"
+				or "Skipped",
+			result.dt and dtToSBracket(result.dt) or "",
 			result.name), result.msg, 3, result.traceback)
 	end,
 }
@@ -190,7 +192,7 @@ local function t(tests)
 	return common(tests, "test", tests.skipped > 0 and " + " .. tests.skipped .. " skipped" or "")
 end
 local function c(cases)
-	return common(cases, "case")
+	return common(cases, "case", cases.skipped > 0 and " + " .. cases.skipped .. " skipped" or "")
 end
 function Report:moduleTestCaseCountToString(mtcTotal, mtcCur)
 	--	only provide mtcCur if there was a previous one increasing the total
@@ -203,7 +205,10 @@ function Report:moduleTestCaseCountToString(mtcTotal, mtcCur)
 			mtcTotal.caseCount:NumTotal() > 0 -- if we printed new cases
 				and latest(mtcTotal.caseCount, mtcCur.caseCount) -- extend with total
 				or mtcCur.caseCount:NumTotal() > 0 -- else check if we printed any cases (and if so, do a variant on 'total')
-					and ("(%d/%d latest cases)"):format(mtcCur.caseCount.passed, mtcCur.caseCount:NumAttempted())
+					and ("(%d/%d latest cases%s)"):format(
+							mtcCur.caseCount.passed,
+							mtcCur.caseCount:NumAttempted(),
+							mtcCur.caseCount.skipped and (" + %d skipped"):format(mtcCur.caseCount.skipped) or "")
 					or "")
 	else
 		return ("%s | %s%s"):format(

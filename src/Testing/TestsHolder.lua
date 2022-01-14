@@ -66,4 +66,27 @@ function TestsHolder:GetFocusSkip()
 	if not containsTrueValues(testSkip) then testSkip = nil end
 	return testFocus, testSkip
 end
+function TestsHolder:GetCasesFocusSkip(test, getArgsListCaseName)
+	if type(test) ~= "table" then return nil, nil end
+	local focus = EnsureDictionary(test.focus or {})
+	local skip = EnsureDictionary(test.skip or {})
+	if test.argsLists then
+		for k, data in pairs(test.argsLists) do
+			local name
+			if data.focus or data.skip then
+				name = type(k) == "number" and getArgsListCaseName(data, k) or k
+			end
+			if data.focus then
+				focus[name] = true
+			end
+			if data.skip then
+				skip[name] = true
+			end
+		end
+	end
+	if not containsTrueValues(focus) then focus = nil end
+	if not containsTrueValues(skip) then skip = nil end
+	return focus, skip
+end
+
 return TestsHolder
