@@ -12,13 +12,14 @@ local function appendMsg(msg, ...)
 	return ("%s | %s"):format(msg, table.concat(args, " "))
 end
 
-local actual = expectedFirst and "expected" or "actual"
-local expected = expectedFirst and "actual" or "expected"
+local actual = if expectedFirst then "expected" else "actual"
+local expected = if expectedFirst then "actual" else "expected"
 local function actualNotExpected(a, op, b, ...)
-	return appendMsg(string.format("(%s) %s %s %s (%s)", actual, describe(a), op, describe(b), expected), ...)
+	return appendMsg(string.format("(%s) %s !%s %s (%s)", actual, describe(a), op, describe(b), expected), ...)
 end
 
 local c; c = { -- each comparison should return error msg if something is wrong, else nil/false
+	appendMsg = appendMsg,
 	describe = describe,
 	actualNotExpected = actualNotExpected,
 	type = function(value, theType, prefixMsg) -- Most comparisons have "..." that are appended to the error message to describe what the test is about
@@ -28,17 +29,17 @@ local c; c = { -- each comparison should return error msg if something is wrong,
 	typeof = function(value, theType, ...)
 		return c.type(theType, "string") or typeof(value) ~= theType and appendMsg(("%s (typeof '%s') is not typeof '%s'"):format(describe(value), type(value), theType), ...)
 	end,
-	equals = function(a, b, ...) return a ~= b and actualNotExpected(a, "~=", b, ...) end,
-	notEquals = function(a, b, ...) return a == b and actualNotExpected(a, "==", b, ...) end,
-	approxEquals = function(a, b, ...) return c.type(a, "number") or c.type(b, "number") or math.abs(a - b) >= threshold and actualNotExpected(a, "~~=", b, ...) end,
+	equals = function(a, b, ...) return a ~= b and actualNotExpected(a, "==", b, ...) end,
+	notEquals = function(a, b, ...) return a == b and actualNotExpected(a, "~=", b, ...) end,
+	approxEquals = function(a, b, ...) return c.type(a, "number") or c.type(b, "number") or math.abs(a - b) >= threshold and actualNotExpected(a, "~~", b, "(approx equals)", ...) end,
 	truthy = function(value, ...) return (not value) and appendMsg(tostring(value) .. " not truthy", ...) end,
 	falsy = function(value, ...) return value and appendMsg(describe(value) .. " not falsy", ...) end,
-	truthyEquals = function(a, b, ...) return not a ~= not b and actualNotExpected(a, "~=", b, "(truthy equals)", ...) end,
-	greaterThan = function(a, b, ...) return a <= b and actualNotExpected(a, "<=", b, ...) end,
-	lessThan = function(a, b, ...) return a >= b and actualNotExpected(a, ">=", b, ...) end,
-	lessThanEqual = function(a, b, ...) return a > b and actualNotExpected(a, ">", b, ...) end,
-	greaterThanEqual = function(a, b, ...) return a < b and actualNotExpected(a, "<", b, ...) end,
-	
+	truthyEquals = function(a, b, ...) return not a ~= not b and actualNotExpected(a, "==", b, "(truthy equals)", ...) end,
+	greaterThan = function(a, b, ...) return a <= b and actualNotExpected(a, ">", b, ...) end,
+	lessThan = function(a, b, ...) return a >= b and actualNotExpected(a, "<", b, ...) end,
+	lessThanEqual = function(a, b, ...) return a > b and actualNotExpected(a, "<=", b, ...) end,
+	greaterThanEqual = function(a, b, ...) return a < b and actualNotExpected(a, ">=", b, ...) end,
+
 	listContains = function(list, value, ...)
 		return c.type(list, "table", "1st argument")
 			or not table.find(list, value) and appendMsg(("List '%s' (length %d) does not contain '%s'"):format(describe(list), #list, describe(value)), ...)
@@ -48,7 +49,7 @@ local c; c = { -- each comparison should return error msg if something is wrong,
 	end,
 	listsSameLength = function(a, b, ...)
 		return c.type(a, "table", "1st argument") or c.type(b, "table", "2nd argument")
-			or #a ~= #b and appendMsg(("Unequal table lengths: %s for %s and %s respectively"):format(actualNotExpected(#a, "~=", #b), describe(a), describe(b)), ...)
+			or #a ~= #b and appendMsg(("Unequal table lengths: %s for %s and %s respectively"):format(actualNotExpected(#a, "==", #b), describe(a), describe(b)), ...)
 	end,
 	listsEqual = function(a, b, ...)
 		local v = c.listsSameLength(a, b, ...)
@@ -114,21 +115,24 @@ local c; c = { -- each comparison should return error msg if something is wrong,
 	end,
 
 	errors = function(func, ...) -- Note: for error functions, the '...' are passed to 'func'; they are not descriptions
-		return c.type(func, "function", "Argument to 'errors'") or (pcall(func, ...) and "Function failed to error" or nil)
+		return c.type(func, "function", "Argument to 'errors'") or
+			if pcall(func, ...) then "Function failed to error"
+				else nil
 	end,
 	errorsWith = function(errMsgSubstring, func, ...)
 		local v = c.type(errMsgSubstring, "string", "1st argument") or c.type(func, "function", "2nd argument")
 		if v then return v end
 		local status, msg = pcall(func, ...)
-		return status and "Function failed to error" or c.type(msg, "string", "Error returned by the function")
-			or (not msg:find(errMsgSubstring) and ("Function did not error with substring '%s'"):format(errMsgSubstring))
+		return if status then "Function failed to error"
+			else c.type(msg, "string", "Error returned by the function")
+				or (not msg:find(errMsgSubstring) and ("Function did not error with substring '%s'"):format(errMsgSubstring))
 	end,
 	errorIs = function(errChecker, func, ...)
 		local v = c.type(errChecker, "function", "1st argument") or c.type(func, "function", "2nd argument")
 		if v then return v end
 		local status, msg = pcall(func, ...)
-		return status and "Function failed to error"
-			or (not errChecker(msg) and "Function did not error as expected")
+		return if status then "Function failed to error"
+			else errChecker(msg)
 	end,
 	fail = function(msg, ...) return appendMsg(msg, ...) or "Test failed" end, -- note that an equivalent 'pass' function is not needed as it is assumed from a lack of failure
 }

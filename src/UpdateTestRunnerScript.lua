@@ -60,12 +60,7 @@ Simply delete/rename the TestRunner script in TestService.
 
 ]]
 
-if script.Disabled then return end
--- Tell plugin that this is Test mode so it can run
-local running = Instance.new("Folder")
-running.Name = "Running"
-running.Archivable = false
-running.Parent = script]=],
+-- If this script is disabled, tests will not be run]=],
 }, "\n")
 
 return function()

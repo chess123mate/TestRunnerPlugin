@@ -10,12 +10,16 @@ function TestSettingsMonitor.new(testSettings, testTree)
 			testTree:ReprintReport()
 		end
 	end
-	new("printStartOfTests", function() testTree:RunAllTests() end)
+	local function runAllTests()
+		testTree:RunAllTests()
+	end
+	new("printStartOfTests", runAllTests)
 	new("hideReport", reprintReportIfShown)
 	new("putTracebackInReport", reprintReportIfShown)
 	new("hidePassedOnFailure", reprintReportIfShown)
 	new("alwaysShowTests", reprintReportIfShown)
 	new("alwaysShowCases", reprintReportIfShown)
+	new("supportRobloxTS", runAllTests)
 	return setmetatable({
 		cons = cons
 	}, TestSettingsMonitor)

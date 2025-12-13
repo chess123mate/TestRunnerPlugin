@@ -21,6 +21,7 @@ local ExploreServices = require(Utils.ExploreServices)
 local Freezer = require(Utils.Freezer)
 local TestService = game:GetService("TestService")
 local testRunner = TestService.TestRunner
+local LogService = game:GetService("LogService")
 local StudioService = game:GetService("StudioService")
 local stepped = game:GetService("RunService").Stepped
 
@@ -28,7 +29,7 @@ local TestTree = {}
 TestTree.__index = TestTree
 
 local allServiceNames = { -- that show up in explorer where you could add ModuleScripts
-	"Workspace", "Players", "Lighting", "ReplicatedFirst", "ReplicatedScriptService", "ReplicatedStorage",
+	"Workspace", "Players", "Lighting", "ReplicatedFirst", "ReplicatedStorage",
 	"ServerScriptService", "ServerStorage", "StarterGui", "StarterPack", "StarterPlayer", "Teams", "SoundService",
 	"Chat", "LocalizationService", "TestService"
 }
@@ -376,7 +377,18 @@ end
 function TestTree:performRun(setupTests)
 	if self.destroyed then return end
 	local num = self.testRunNum
-	print("\n-----------Starting Tests-----------")
+	if self.testSettings.supportRobloxTS then
+		for k, v in _G do
+			if typeof(k) == "Instance" and type(v) == "table" and v.Promise then
+				_G[k] = nil
+			end
+		end
+	end
+	if self.testSettings.clearOutput and self.notFirstTime then
+		LogService:ClearOutput()
+	end
+	self.notFirstTime = true -- only used for ClearOutput first-time-detection
+	print("-----------Starting Tests-----------")
 	self.allowFreezer = true -- see allowFreezer initialization for explanation
 	local start = os.clock()
 	self.moduleScriptsAtStartOfRun = cloneMSE(self.moduleScriptExists)
@@ -434,7 +446,7 @@ function TestTree:PrintDependencyTree() -- TODO Add a button to print this out?
 	ex: a>b, b>c, c>d
 	say we start at b>c, then we see c>d, but later we find a>b
 	so since 'a' is not a descendant of 'b', we can add it as a parent and merge the trees
-	
+
 	What if we see c>d first, then we see a>b>c?
 		at this point, we could say "hey, we saw 'c' before"
 		Then we ask "was a/b a descendant of c?"

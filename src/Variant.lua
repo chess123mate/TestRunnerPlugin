@@ -216,11 +216,14 @@ function Variant:performRequire()
 				error("TestRunnerPlugin does not support non-ModuleScript requires", 2)
 			end
 		end
-		local value, extra = require(self.variant)(self.moduleScript, newRequire)
-		if value == nil or extra ~= nil then
-			return true, "Module code did not return exactly one value"
+		local function handle(...)
+			if select("#", ...) ~= 1 then
+				self.requiredError = "Module code did not return exactly one value"
+				return true, self.requiredError
+			end
+			return false, (...)
 		end
-		return false, value
+		return handle(require(self.variant)(self.moduleScript, newRequire))
 	end
 end
 local continueUserErrorAddTraceback = PluginErrHandler.GenContinueUserErrorAddTraceback(pluginName)

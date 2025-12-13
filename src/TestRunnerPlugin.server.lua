@@ -1,3 +1,4 @@
+local ScriptEditorService = game:GetService("ScriptEditorService")
 local TestService = game:GetService("TestService")
 local modules = script.Parent
 local testRunnerScript = TestService:FindFirstChild("TestRunner")
@@ -29,14 +30,14 @@ local function install()
 	print("TestRunner successfully installed! Click Install again to select and open the TestRunner script (includes documentation).")
 end
 local function onAlreadyInstalled()
-	local signal = testRunnerScript:FindFirstChild("Running")
-	if signal then
-		signal:Destroy()
-	end
+	-- local signal = testRunnerScript:FindFirstChild("Running")
+	-- if signal then
+	-- 	signal:Destroy()
+	-- end
 	startupWhenInstalled()
 end
 
-local function reRunTests() -- overwritten later if tests are running
+local reRunTests = function() -- overwritten later if tests are running
 	print("Cannot run tests: TestRunner only runs in Run mode (no clients)")
 end
 
@@ -103,7 +104,9 @@ when RUNNING (if installed):
 		createNoActive("Install", "Install TestRunner into this place", function()
 			if isInstalled() then
 				game.Selection:Set({testRunnerScript})
-				plugin:OpenScript(testRunnerScript)
+				task.spawn(function()
+					ScriptEditorService:OpenScriptDocumentAsync(testRunnerScript)
+				end)
 			else
 				xpcall(install, function(msg)
 					checkScriptInjectionError(msg)
@@ -187,6 +190,7 @@ plugin.Unloading:Connect(function()
 end)
 
 local RunService = game:GetService("RunService")
+task.wait() -- workaround to Roblox :IsRunning() delay bug (Jan 14, 2022; last confirmed Feb 12, 2022)
 if not RunService:IsRunning() then
 	tryRunningTests()
 	if isInstalled() then
@@ -198,13 +202,18 @@ elseif not RunService:IsRunMode() or not isInstalled() then
 	-- We only want to run tests when installed & the game is running
 	return
 end
-setupRunningToolbar()
 -- We can now wait for TestRunner script to signal that it's running
 --	since RunService doesn't tell us the difference between Run mode and Server mode [as of October 2020]
-local signal = testRunnerScript:WaitForChild("Running", 60)
-if not signal then return end
+-- [Jan 14, 2022] This check is disabled because due to a Roblox bug (or update) where TestService.ExecuteWithStudioRun no longer functions; instead, we cancel testing if the TestRunner script is disabled or stop any in-progress testing if players are detected
+--local signal = testRunnerScript:WaitForChild("Running", 60)
+--if not signal then return end
+if game.TestService.TestRunner.Disabled then return end
+local signal = Instance.new("Folder") -- note: place scripts may still rely on this being here
+signal.Name = "Running"
+signal.Parent = testRunnerScript
+setupRunningToolbar()
 
-function reRunTests()
+reRunTests = function()
 	-- Do nothing since tests will be loading momentarily
 end
 
@@ -229,9 +238,24 @@ do -- Give other scripts a chance to run so as to not impact the run time of the
 		local dt = wait()
 		if dt < 0.1 then break end
 	end
-	print(("TestRunner waited %dms for other scripts"):format((os.clock()-start)*1000))
+	print(("TestRunner waited %dms for other scripts"):format((os.clock() - start) * 1000))
 end
+if #game.Players:GetPlayers() > 0 then return end
+local playerAddedCon; playerAddedCon = game.Players.PlayerAdded:Connect(function()
+	playerAddedCon:Disconnect()
+	if testTree then
+		testTree:Destroy()
+		testTree = nil
+	end
+	if signal then
+		signal:Destroy()
+	end
+end)
 init()
-function reRunTests()
-	testTree:RunAllTests()
+reRunTests = function()
+	if testTree then
+		testTree:RunAllTests()
+	else
+		print("Tests cancelled due to presence of players")
+	end
 end

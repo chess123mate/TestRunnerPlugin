@@ -29,6 +29,7 @@ local Bool = {
 }
 local options = {
 	new("preventRunWhileEditingScripts", Bool, true, "If true, tests will not be rerun while you are editing/viewing a being-tested-ModuleScript in Roblox Studio"),
+	new("clearOutput", Bool, true, "Clear the Output Window before running tests"),
 	new("printStartOfTests", Bool, false, "If true, the start of all tests will be printed"),
 	new("hideReport", Bool, false, "If true, the final report is not shown"),
 	new("hideOneLineErrors", Bool, true, "(If report is enabled) Only display one-line errors in the final report."),
@@ -36,6 +37,7 @@ local options = {
 	new("hidePassedOnFailure", Bool, true, "(For reports) If true and at least one test fails, passing modules will be hidden (making it easier to read errors/output)"),
 	new("alwaysShowTests", Bool, false, "(For reports) Always show a module's tests, even if all of them succeeded"),
 	new("alwaysShowCases", Bool, false, "(For reports) Always show a test's cases, even if all of them succeeded"),
+	new("supportRobloxTS", Bool, true, "Reset values associated with Instances in _G before running tests (required for Roblox-TS)."),
 }
 for _, option in ipairs(options) do
 	options[option.Key] = option

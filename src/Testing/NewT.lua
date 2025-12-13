@@ -38,10 +38,11 @@ local function newT(testSettings, expectedFirst, moduleScript)
 			--	(You don't need a multi for Vector3, but custom user objects might need it.)
 			if result then
 				anythingFailed = true
-				list[#list + 1] = (">>> %s%s(%s) <<<    %s"):format(desc, key and (": %s"):format(key) or "", table.concat(args, ", "), result)
+				list[#list + 1] = (">>> %s%s(%s) <<<    %s"):format(desc, if key then (": %s"):format(key) else "", table.concat(args, ", "), result)
 			else
-				-- This many spaces roughly lines up with after ">>> " in both error text and report text
-				list[#list + 1] = ("        %s%s(%s)"):format(desc, key and (": %s"):format(key) or "", table.concat(args, ", "))
+				-- Original had "        " before %s with comment `This many spaces roughly lines up with after ">>> " in both error text and report text`
+				-- But if you use mono-width text, you just need...
+				list[#list + 1] = ("    %s%s(%s)"):format(desc, if key then (": %s"):format(key) else "", table.concat(args, ", "))
 			end
 		end
 		function self.test(desc, func, ...) -- func returns string describing problem or nil; ... are args to send to func
