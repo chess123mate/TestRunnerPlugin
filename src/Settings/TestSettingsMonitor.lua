@@ -25,7 +25,7 @@ function TestSettingsMonitor.new(testSettings, testTree)
 	}, TestSettingsMonitor)
 end
 function TestSettingsMonitor:Destroy()
-	for _, con in ipairs(self.cons) do
+	for _, con in self.cons do
 		con:Disconnect()
 	end
 end

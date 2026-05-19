@@ -1,9 +1,9 @@
 return {
-	-- GetSearchArea = function(commonServiceNames) return commonServiceNames end,
+	-- GetSearchArea = function(commonServiceNames) return commonServiceNames end, -- Top level config only
 	-- SearchShouldRecurse = function(instance, base)
 	-- 	return base(instance) and not instance.Name:find("TestRunnerPlugin")
 	-- end,
-	-- MayBeTest = function() return true end,
+	-- MayBeTest = function(moduleScript) return true end,
 	-- GetSetupFunc = function(moduleScript, requireValue)
 	-- 	return type(requireValue) == "function" and requireValue
 	-- end,

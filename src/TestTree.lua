@@ -31,7 +31,7 @@ TestTree.__index = TestTree
 local allServiceNames = { -- that show up in explorer where you could add ModuleScripts
 	"Workspace", "Players", "Lighting", "ReplicatedFirst", "ReplicatedStorage",
 	"ServerScriptService", "ServerStorage", "StarterGui", "StarterPack", "StarterPlayer", "Teams", "SoundService",
-	"Chat", "LocalizationService", "TestService"
+	"TextChatService", "Chat", "LocalizationService", "TestService"
 }
 
 -- Test run types:
@@ -115,7 +115,7 @@ function TestTree.new(testSettings, Report, reInit)
 					local b = Config.GetSearchAreaFromModule(testConfig)
 					local same = #a == #b
 					if same then
-						for i, v in ipairs(a) do
+						for i, v in a do
 							if v ~= b[i] then
 								same = false
 								break
@@ -130,7 +130,7 @@ function TestTree.new(testSettings, Report, reInit)
 				if mayHaveChanged("GetSetupFunc") or mayHaveChanged("MayBeTest")  then
 					-- We need to re-analyze all scripts as if their source changed
 					MayBeTest = new.MayBeTest
-					for moduleScript, variant in pairs(self.moduleScriptToVariant) do
+					for moduleScript, variant in self.moduleScriptToVariant do
 						sourceChanged(moduleScript, variant)
 					end
 				end
@@ -158,7 +158,7 @@ function TestTree.new(testSettings, Report, reInit)
 	MayBeTest = topLevelConfig.MayBeTest
 	local SearchShouldRecurse = topLevelConfig.SearchShouldRecurse
 	self.serviceConCleanup = ExploreServices(listenServiceNames, function(obj)
-		if obj:IsA("ModuleScript") and not obj:IsDescendantOf(testRunner) and MayBeTest(obj) then
+		if obj:IsA("ModuleScript") and not obj:IsDescendantOf(testRunner) and obj.Name ~= "TestConfig" and MayBeTest(obj) then
 			local variant = self:GetVariant(obj)
 			coroutine.wrap(sourceChanged)(obj, variant)
 			variant.Invalidated:Connect(function()
@@ -217,7 +217,7 @@ function TestTree:Destroy()
 	self.requireTracker:Destroy()
 	self.testSettingsMonitor:Destroy()
 	self.moduleScriptCleanup()
-	for _, cleanup in pairs(self.moduleScriptExists) do
+	for _, cleanup in self.moduleScriptExists do
 		cleanup()
 	end
 end
@@ -300,7 +300,7 @@ function TestTree:waitForTests()
 end
 function TestTree:runAllTests()
 	self:performRun(function(addTest)
-		for moduleScript, variant in pairs(self.testVariants) do
+		for moduleScript, variant in self.testVariants do
 			addTest(moduleScript)
 		end
 	end)
@@ -310,7 +310,7 @@ function TestTree:runQueuedTests()
 	local queue = self.queue
 	self.queue = {}
 	self:performRun(function(addTest)
-		for _, moduleScript in ipairs(queue) do
+		for _, moduleScript in queue do
 			addTest(moduleScript)
 		end
 	end)
@@ -323,7 +323,7 @@ function TestTree:startTest(moduleScript)
 end
 local function cloneMSE(t)
 	local new = {}
-	for k, con in pairs(t) do
+	for k, con in t do
 		new[k] = true
 	end
 	return new
@@ -331,7 +331,7 @@ end
 local function filterResultsForNonTests(results, testVariants)
 	local new = Results.new()
 	local n = 0
-	for _, m in ipairs(results) do
+	for _, m in results do
 		if testVariants[m.moduleScript] then -- Only keep it if it's still a valid test
 			n += 1
 			new[n] = m
@@ -348,10 +348,10 @@ local function newLastResults(lastResults, results, testVariants)
 		-- Then use that to update the "new" lastResults
 		-- Remove it from moduleScriptToResult if it's been dealt with
 		-- Add any remaining moduleScriptToResult to "new" in the order they appear in results
-		for _, m in ipairs(results) do
+		for _, m in results do
 			moduleScriptToResult[m.moduleScript] = m
 		end
-		for _, m in ipairs(lastResults) do
+		for _, m in lastResults do
 			if testVariants[m.moduleScript] then -- Only keep it if it's still a valid test
 				n += 1
 				local updated = moduleScriptToResult[m.moduleScript]
@@ -363,7 +363,7 @@ local function newLastResults(lastResults, results, testVariants)
 				end
 			end
 		end
-		for _, m in ipairs(results) do
+		for _, m in results do
 			if moduleScriptToResult[m.moduleScript] then
 				n += 1
 				new[n] = m
@@ -435,7 +435,7 @@ function TestTree:ReprintReport()
 	end -- else first report will print soon
 end
 -- function TestTree:RunTests(moduleScripts) -- commented out because not used
--- 	for _, moduleScript in ipairs(moduleScripts) do
+-- 	for _, moduleScript in moduleScripts do
 -- 		if self.testVariants[moduleScript] then
 -- 			self:addToQueue(moduleScript)
 -- 		end
@@ -456,7 +456,7 @@ function TestTree:PrintDependencyTree() -- TODO Add a button to print this out?
 	]]
 	print("\nDependency Tree")
 	local seen = {}
-	for _, v in pairs(self.moduleScriptToVariant) do
+	for _, v in self.moduleScriptToVariant do
 		v:PrintDependencies(seen)
 	end
 end

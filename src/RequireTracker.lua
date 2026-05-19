@@ -44,7 +44,7 @@ function RequireTracker:WaitOnList(moduleScripts, cancelFunc)
 	local waited = false
 	while next(threads) do
 		local found = false
-		for _, obj in ipairs(moduleScripts) do
+		for _, obj in moduleScripts do
 			if threads[obj] then
 				found = true
 				while self.any.Event:Wait() ~= obj do end

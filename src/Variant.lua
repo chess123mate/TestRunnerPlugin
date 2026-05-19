@@ -31,7 +31,7 @@ VariantStorage.__index = VariantStorage
 local variantStorageIsTemporaryScript = {} -- VariantStorage -> isTemporaryScript
 local never = function() end
 function VariantStorage.new(storage, isTemporaryScript)
-	--	You can perform `for moduleScript, variant in pairs(storage) do` on this class
+	--	You can perform `for moduleScript, variant in storage do` on this class
 	--	isTemporaryScript:function(moduleScript)->true if the script is temporary and should not invalidate other scripts
 	--		It is assumed that a script can become non-temporary and so it is invoked as needed for each module script
 	--		It defaults to assuming that scripts are never temporary
@@ -51,7 +51,7 @@ function VariantStorage:Remove(moduleScript) -- Should only be called by Variant
 	self[moduleScript] = nil
 end
 function VariantStorage:Destroy()
-	for _, variant in pairs(self) do
+	for _, variant in self do
 		variant:Destroy()
 	end
 	variantStorageIsTemporaryScript[self] = nil
@@ -88,7 +88,7 @@ function Variant.new(variantStorage, moduleScript)
 				self.requireFinished:Destroy()
 				self.requireFinished = nil
 			end
-			for _, con in pairs(self.dependencies) do
+			for _, con in self.dependencies do
 				con:Disconnect()
 			end
 			self.dependencies = {}
@@ -127,7 +127,7 @@ function Variant:PrintDependencies(seen, depth)
 		seen[self] and (" (%d)"):format(seen[self]) or ""))
 	if not seen[self] then
 		seen[self] = id
-		for variant, _ in pairs(self.dependencies) do
+		for variant, _ in self.dependencies do
 			variant:PrintDependencies(seen, depth + 1)
 		end
 	end
@@ -223,7 +223,7 @@ function Variant:performRequire()
 			end
 			return false, (...)
 		end
-		return handle(require(self.variant)(self.moduleScript, newRequire))
+		return handle(require(self.variant :: Instance)(self.moduleScript, newRequire))
 	end
 end
 local continueUserErrorAddTraceback = PluginErrHandler.GenContinueUserErrorAddTraceback(pluginName)
@@ -336,10 +336,10 @@ function Variant:Destroy()
 	end
 	self.invalidated:Destroy()
 	self.sourceChanged:Destroy()
-	for _, con in pairs(self.dependencies) do
+	for _, con in self.dependencies do
 		con:Disconnect()
 	end
-	for _, con in ipairs(self.cons) do
+	for _, con in self.cons do
 		con:Disconnect()
 	end
 end

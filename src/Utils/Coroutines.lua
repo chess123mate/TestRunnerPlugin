@@ -8,7 +8,8 @@ function Coroutines.new(...)
 	return self
 end
 function Coroutines:Add(...)
-	for _, co in ipairs({...}) do
+	for i = 1, select("#", ...) do
+		local co = select(i, ...)
 		if coroutine.status(co) ~= "dead" then
 			self[co] = true
 		end
@@ -16,7 +17,8 @@ function Coroutines:Add(...)
 	return ...
 end
 function Coroutines:Remove(...)
-	for _, co in ipairs({...}) do
+	for i = 1, select("#", ...) do
+		local co = select(i, ...)
 		self[co] = nil
 	end
 end
@@ -26,7 +28,7 @@ function Coroutines:WaitForComplete(timeout)
 	timeout = timeout or math.huge
 	local start = os.clock()
 	while true do
-		for co in pairs(self) do
+		for co in self do
 			if coroutine.status(co) == "dead" then
 				self[co] = nil
 			end

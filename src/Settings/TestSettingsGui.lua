@@ -1,11 +1,12 @@
 local function create(class, props, ...)
 	local x = Instance.new(class)
 	if props then
-		for k, v in pairs(props) do
+		for k, v in props do
 			x[k] = v
 		end
 	end
-	for _, child in ipairs({...}) do
+	for i = 1, select("#", ...) do
+		local child = select(i, ...)
 		child.Parent = x
 	end
 	return x
@@ -147,7 +148,7 @@ function TestSettingsGui.new(testSettings)
 
 	local rows = {}
 	local optionKeyToCheckbox = {}
-	for i, option in ipairs(testSettings.Options) do
+	for i, option in testSettings.Options do
 		local desc = SettingsCheckboxDesc.new(option.Name, option.Desc, checkboxSize, rowHeight, maxDescTextSize)
 		local cb = Checkbox.new(nil, rowHeight, checkboxSize, desc)
 		local row = cb:GetInstance()
@@ -159,7 +160,7 @@ function TestSettingsGui.new(testSettings)
 			testSettings:SetOne(option.Key, cb:GetValue())
 		end)
 	end
-	
+
 	local padding = labelPadding:Clone()
 	padding.PaddingLeft = UDim.new(0, labelPaddingUDim.Offset * 2)
 	local instance = create("ScrollingFrame", {
@@ -204,7 +205,7 @@ function TestSettingsGui.new(testSettings)
 end
 function TestSettingsGui:Destroy()
 	self.instance:Destroy()
-	for _, cb in pairs(self.optionKeyToCheckbox) do
+	for _, cb in self.optionKeyToCheckbox do
 		cb:Destroy()
 	end
 	self.con:Disconnect()
@@ -213,7 +214,7 @@ function TestSettingsGui:GetInstance() return self.instance end
 function TestSettingsGui:Update()
 	local testSettings = self.testSettings:Get()
 	local optionKeyToCheckbox = self.optionKeyToCheckbox
-	for key, value in pairs(testSettings) do
+	for key, value in testSettings do
 		optionKeyToCheckbox[key]:SetValue(value)
 	end
 end

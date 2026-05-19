@@ -66,12 +66,13 @@ function TestConfigTree.new(listenServiceNames, searchShouldRecurse, Config, onC
 		end
 	end
 	local function cleanup(...)
-		for _, con in ipairs({...}) do
+		for i = 1, select("#", ...) do
+			local con = select(i, ...)
 			con:Disconnect()
 			self.cons[con] = nil
 		end
 	end
-	self.serviceConsCleanup = ExploreServices(listenServiceNames, function(obj)
+	self.serviceConsCleanup = ExploreServices(listenServiceNames, function(obj) -- handleDescendant (return true if should recurse)
 		if obj:IsA("ModuleScript") and not obj:IsDescendantOf(testRunner) then
 			local sourceChangedCon
 			local prevValue -- must keep track of this for if the obj is removed since the value depends on the parent
@@ -131,7 +132,7 @@ function TestConfigTree:GetConfigScriptFor(moduleScript, key)
 end
 function TestConfigTree:Destroy()
 	self.serviceConsCleanup()
-	for con, _ in pairs(self.cons) do
+	for con, _ in self.cons do
 		con:Disconnect()
 	end
 end

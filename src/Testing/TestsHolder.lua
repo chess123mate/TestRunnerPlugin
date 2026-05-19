@@ -24,7 +24,7 @@ local function newTests()
 end
 
 local function containsTrueValues(dict)
-	for k, v in pairs(dict) do
+	for k, v in dict do
 		if v then return true end
 	end
 	return false
@@ -41,7 +41,7 @@ function TestsHolder:GetTests() return self.tests end
 function TestsHolder:ForEachTest(func)
 	--	func(name, data)
 	local tests = self.tests
-	for _, name in ipairs(tests.__order) do
+	for _, name in tests.__order do
 		if not specialKeys[name] then
 			func(name, tests[name])
 		end
@@ -71,7 +71,7 @@ function TestsHolder:GetCasesFocusSkip(test, getArgsListCaseName)
 	local focus = EnsureDictionary(test.focus or {})
 	local skip = EnsureDictionary(test.skip or {})
 	if test.argsLists then
-		for k, data in pairs(test.argsLists) do
+		for k, data in test.argsLists do
 			local name
 			if data.focus or data.skip then
 				name = type(k) == "number" and getArgsListCaseName(data, k) or k

@@ -52,7 +52,7 @@ function tests.addWorks()
 	-- 	We can use t.cleanup (but see setup & cleanup notes below) to ensure Destroy will definitely be called after the test is done.
 	local bucket = t.cleanup(Bucket.new(5)) -- t.cleanup returns whatever is given to it
 	-- t.cleanup can take instances, functions, event connections, and tables that have either Destroy or Disconnect defined on them.
-	
+
 	-- Now let's test the bucket.
 	-- By default, the 'actual' value comes first, then the 'expected'. You can change this in a TestConfig with 'expectedFirst = true'.
 	t.equals(bucket:Add(3), 3, "add returns amount filled") -- extra arguments to most comparisons are assumed to be descriptions (you can send more than one, like in a print statement)
@@ -85,7 +85,7 @@ tests["filled fired correctly"] = {
 	args = {0, 1, 2, 3, 4}, -- each item in 'args' is a different test case
 	-- You can also name cases (though order is then not guaranteed)
 	-- args = {emptyCase = 0, 1, 2, 3, almostFull = 4},
-	
+
 	-- 'argsLists' is useful for 2+ arguments or when you want to maintain order with named cases
 	-- Each item must be the list of arguments to send to the test
 	argsLists = {
@@ -95,12 +95,12 @@ tests["filled fired correctly"] = {
 		notQuiteFull = {4.9},
 		-- Note that you should avoid 'nil' values in the list, to ensure that none get lost
 		-- ex, in {nil, 3}, the '3' might not be sent
+		-- You can also specify `focus = true` or `skip = true` to focus/skip a case
 	},
 	-- skip = true, -- This would skip running this test
 	-- focus = true, -- This would prevent non-focus tests in this module from running
 }
 
--- Instead of specifying skip/focus throughout the test file, it is recommended to have that configured at the top.
 -- For illustration, here's a test we want to skip:
 function tests.testToSkip()
 	error("Unfinished or problematic test")
@@ -162,11 +162,17 @@ newBucketTest("otherGetFunctionsWork", function(bucket)
 end)
 
 function tests.constructorErrorsWhenMissingArgs()
+	-- t.errorsWith(errMsgSubstring, func, ...) will assert that `func(...)` errors with the specified substring
 	t.errorsWith("capacity", Bucket.new)
 end
 
+-- For more complex situations you can also use t.errorIs(analysis, func, ...), where `analysis` takes the error message and returns a problem string (on failure) or else a falsy value on success.
+-- In this case, this recreates errorsWith (as an example):
+local function errIsAmount(msg)
+	return if msg:find("amount") then nil else "Function didn't error with substring 'amount'"
+end
 newBucketTest("addErrorsWithIncorrectArgs", function(bucket)
-	t.errorsWith("amount", function()
+	t.errorIs(errIsAmount, function()
 		bucket:Add(-1)
 	end)
 end)
@@ -175,7 +181,8 @@ function tests.otherAvailableFunctions()
 	-- In your tests, you can also use:
 	-- t.describe(arg) -- returns a string description of 'arg' in a handy fashion (ex puts quotes around strings, shortens tables, uses GetFullName on instances)
 	--	t.describe is often counter-productive if you use Roblox's Expressive Output Window
-	-- t.actualNotExpected(a, op, b, ...) -- generates an "actual ~= expected" string but using 'a', 'op', and 'b'. Switches based on whether 'actual' is expected to be first/second (any '...' args are appended to the message)
+	-- t.actualNotExpected(a, op, b, ...) -- generates an "actual ~= expected" string but using 'a', 'op', and 'b'. (Switches based on whether 'actual' is expected to be first/second.) Any '...' args are appended to the message.
+	-- t.comparisons has the same functions as `t`, except that they don't error when something goes wrong (they only return the problem string).
 end
 
 end -- ends "return function(tests, t)"

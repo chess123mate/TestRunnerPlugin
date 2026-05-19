@@ -1,5 +1,8 @@
 local modules = script.Parent
+local Config = require(modules.Config.Config)
+local Comparisons = require(modules.Testing.Comparisons)
 local testRunnerScript = game:GetService("TestService").TestRunner
+
 local function header(s)
 	local line = string.rep("-", #s + 6)
 	return ("%s\n-- %s --\n%s"):format(line, s, line)
@@ -50,9 +53,9 @@ See the ExampleTests ModuleScript (a child of this TestRunner script) for docume
 You can move it directly into TestService to experiment with it.
 
 ]=],
-	require(modules.Config.Config).GetDocs(header),
+	Config.GetDocs(header),
 	"\n", -- will be two spaces (for between sections)
-	require(modules.Testing.Comparisons).GetDocs(header),
+	Comparisons.GetDocs(header),
 	"\n",
 	header("Uninstallation"), [=[
 

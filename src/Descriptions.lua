@@ -1,5 +1,5 @@
 local Descriptions = {}
-function Descriptions.Describe(x) -- Describe an arbitrary object is a bit nicer format than tostring
+function Descriptions.Describe(x) -- Describe an arbitrary object in a bit nicer format than tostring
 	local t = typeof(x)
 	if t == "string" then
 		return ('"%s"'):format(x)
@@ -10,7 +10,12 @@ function Descriptions.Describe(x) -- Describe an arbitrary object is a bit nicer
 	elseif t == "Instance" then
 		return ("'Instance %s'"):format(x:GetFullName())
 	else
-		return tostring(x)
+		local s = tostring(x)
+		if s:find("[ ,]") and not s:sub(1, 1):find("[[({]") then
+			return "(" .. s .. ")"
+		else
+			return s
+		end
 	end
 end
 local stopAtClassNames = {

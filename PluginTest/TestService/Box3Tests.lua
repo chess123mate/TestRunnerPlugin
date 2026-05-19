@@ -1,6 +1,7 @@
 local Box3 = require(game.ServerScriptService.Box3)
 return function(tests, t)
 
+
 --tests.focus = {"Simple"}
 tests.Simple = function()
 	local b = Box3.new(1, 2, 3)
@@ -24,5 +25,16 @@ tests.UpdateOneNum = function()
 	--failNow()
 	t.equals(b.Sum, 33)
 end
+
+tests.MultiTest = function()
+	local b = Box3.new(1, 2, 3)
+	t.multi("MultiTest", function(m)
+		m.equals("a", b.a, 1)
+		m.equals("b", b.b, 2)
+		-- m.equals("b", b.b, 20)
+		m.equals("c", b.c, 3)
+	end)
+end
+
 
 end

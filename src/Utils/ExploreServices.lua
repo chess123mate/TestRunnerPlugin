@@ -5,12 +5,12 @@ local function ExploreServices(names, handleDescendant, gameOverride)
 	local cleanups = {}
 	local function explore(obj)
 		if handleDescendant(obj) then
-			for _, c in ipairs(obj:GetChildren()) do
+			for _, c in obj:GetChildren() do
 				explore(c)
 			end
 			local cons
 			local function cleanup()
-				for _, con in ipairs(cons) do
+				for _, con in cons do
 					con:Disconnect()
 				end
 				cleanups[cleanup] = nil
@@ -26,11 +26,11 @@ local function ExploreServices(names, handleDescendant, gameOverride)
 			cleanups[cleanup] = true
 		end
 	end
-	for i, name in ipairs(names) do
+	for i, name in names do
 		explore(game:GetService(name))
 	end
 	return function()
-		for cleanup, _ in ipairs(cleanups) do
+		for cleanup in cleanups do
 			cleanup()
 		end
 	end

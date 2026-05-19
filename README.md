@@ -30,16 +30,7 @@ TestRunner only needs this permission for installation and automatic updating of
 #### Manual installation steps:
 
 1. Set TestService.ExecuteWithStudioRun to `true`
-2. In a Script named TestRunner directly inside TestService, paste this code:
-
-```lua
-if script.Disabled then return end
--- Tell plugin that this is Test mode so it can run
-local running = Instance.new("Folder")
-running.Name = "Running"
-running.Archivable = false
-running.Parent = script
-```
+2. Add a Script named TestRunner directly inside TestService (it can be empty)
 
 ### Internet Access Permission
 
@@ -57,7 +48,7 @@ You can paste it directly into TestService to experiment with it.
 
 ## Configuration
 
-You can configure how the system operates through user settings (in the plugin menu) and TestConfig ModuleScripts. 
+You can configure how the system operates through user settings (in the plugin menu) and TestConfig ModuleScripts.
 
 ## Further Documentation
 

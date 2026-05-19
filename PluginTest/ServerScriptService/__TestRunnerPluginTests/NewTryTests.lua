@@ -18,13 +18,13 @@ local function assertEquals(name, a, b)
 end
 local function assertTableEquals(name, a, b)
 	if a ~= b then
-		for k, v in pairs(a) do
+		for k, v in a do
 			if b[k] ~= v then
 				progress = -1
 				error(("%s: key '%s': %s ~= %s"):format(name, tostring(k), tostring(v), tostring(b[k])), 2)
 			end
 		end
-		for k, v in pairs(b) do
+		for k, v in b do
 			if a[k] ~= v then
 				progress = -1
 				error(("%s: key '%s': %s ~= %s"):format(name, tostring(k), tostring(a[k]), tostring(v)), 2)
@@ -45,8 +45,10 @@ progress = 1
 local function return1() return 1 end
 
 local function no(try, ...)
-	for _, name in ipairs({...}) do
-		(try["on" .. name] or error("no try function on" .. name))(try, function() error("on" .. name .. " does not get called") end)
+	for i = 1, select("#", ...) do
+		local name = select(i, ...)
+		local fn = try["on" .. name] or error("no try function on" .. name)
+		fn(try, function() error("on" .. name .. " does not get called") end)
 	end
 	return try
 end

@@ -23,7 +23,7 @@ local function install()
 	testRunnerScript = Instance.new("Script")
 	testRunnerScript.Name = "TestRunner"
 	testRunnerScript.Parent = TestService
-	for _, c in ipairs(modules.UserDocumentation:GetChildren()) do
+	for _, c in modules.UserDocumentation:GetChildren() do
 		c:Clone().Parent = testRunnerScript
 	end
 	startupWhenInstalled()
@@ -65,7 +65,7 @@ local setupToolbar, setupRunningToolbar, guiCleanup do
 	local settingsButton
 	local function toggleTestSettingsGui()
 		if not settingsWidget then -- create
-			settingsWidget = plugin:CreateDockWidgetPluginGui("TestRunnerSettings", DockWidgetPluginGuiInfo.new(
+			settingsWidget = plugin:CreateDockWidgetPluginGuiAsync("TestRunnerSettings", DockWidgetPluginGuiInfo.new(
 				Enum.InitialDockState.Float,
 				true, -- enabled
 				true, -- override previous enabled state
@@ -162,7 +162,7 @@ local function tryRunningTests()
 	local folder = game:GetService("ServerScriptService"):FindFirstChild("__TestRunnerPluginTests")
 	if not folder then return end
 	testVariants = testVariants or require(modules.Variant).Storage.new()
-	for _, obj in ipairs(folder:GetChildren()) do
+	for _, obj in folder:GetChildren() do
 		if obj:IsA("ModuleScript") then
 			local variant = testVariants:Get(obj)
 			local success, value = variant:TryRequire()

@@ -38,13 +38,12 @@ return function(setupTry, func, ...)
 		end
 		finally()
 	end
-	-- Using coroutine.wrap allows Roblox to output errors if something goes wrong in user code
-	coroutine.wrap(function(...)
+	-- Using task.spawn allows Roblox to output errors if something goes wrong in user code
+	task.spawn(function(...)
 		co = coroutine.running()
 		interpretResults(xpcall(func, errorHandler, ...))
-		--interpretResults(true, func(...)) -- DEBUG
-	end)(...)
-	if coroutine.status(co) ~= "dead" then
+	end, ...)
+	if coroutine.status(co :: thread) ~= "dead" then
 		async = true
 		coroutine.wrap(onAsyncStart)(co) -- guarantees the try returns immediately, as promised
 		if timeout then

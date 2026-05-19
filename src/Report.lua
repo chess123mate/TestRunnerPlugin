@@ -10,11 +10,11 @@ local function filterOldResults(oldResults, results)
 	--	Returns nil if it's an empty list
 	if not oldResults then return nil end
 	local inCur = {}
-	for _, result in ipairs(results) do
+	for _, result in results do
 		inCur[GetModuleName(result.moduleScript)] = true
 	end
 	local new = Results.new()
-	for _, result in ipairs(oldResults) do
+	for _, result in oldResults do
 		if not inCur[GetModuleName(result.moduleScript)] then
 			new[#new + 1] = result
 		end
@@ -24,7 +24,7 @@ end
 function Report.new(testSettings, results, oldResults, --[[requireTime, setupTime, runTime,]] totalTime)
 	return setmetatable({
 		testSettings = testSettings,
-		results = results, -- List<Result> 
+		results = results, -- List<Result>
 		oldResults = filterOldResults(oldResults, results), -- oldResults:Results that does not contain any no-longer-test module results
 		-- requireTime = requireTime,
 		-- setupTime = setupTime,
@@ -46,7 +46,7 @@ function Report:tabChar(d)
 end
 function Report:shouldPrintChildren(result, depth)
 	if (depth == 1 and self.testSettings.alwaysShowTests) or (depth > 0 and self.testSettings.alwaysShowCases) then return true end
-	for _, c in ipairs(result.subResults) do
+	for _, c in result.subResults do
 		if c:Failed() then return true end
 	end
 	return false
@@ -124,14 +124,14 @@ function Report:printReport(result, tabSoFar, depth)
 	if willPrintChildren then
 		depth = depth + 1
 		tabSoFar = self:tabChar(depth)
-		for _, c in ipairs(result.subResults) do
+		for _, c in result.subResults do
 			self:printReport(c, tabSoFar, depth)
 		end
 	end
 end
 function Report:PrintReport()
 	--	Note: does not contain summary (which should be printed after)
-	local results = self.results
+	local results = self.results :: {}
 	print() -- Spacing
 	if #results == 0 then
 		print("TestRunner: no modules detected")
@@ -151,7 +151,7 @@ function Report:PrintReport()
 	if oldResults then
 		if not hidePassedModules or oldWentWrong then -- either all are printed or we have at least 1 failed
 			print("Previous:")
-			for _, module in ipairs(oldResults) do
+			for _, module in oldResults do
 				if not hidePassedModules or module:Failed() then
 					self:printReport(module)
 				end
@@ -163,7 +163,7 @@ function Report:PrintReport()
 	end
 	-- at this point, if all new ones succeeded, disregard hidePassedModules
 	if not curWentWrong then hidePassedModules = false end
-	for _, module in ipairs(results) do
+	for _, module in results do
 		if not hidePassedModules or module:Failed() then
 			self:printReport(module)
 		end

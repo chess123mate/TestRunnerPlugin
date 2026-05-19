@@ -39,7 +39,7 @@ local options = {
 	new("alwaysShowCases", Bool, false, "(For reports) Always show a test's cases, even if all of them succeeded"),
 	new("supportRobloxTS", Bool, true, "Reset values associated with Instances in _G before running tests (required for Roblox-TS)."),
 }
-for _, option in ipairs(options) do
+for _, option in options do
 	options[option.Key] = option
 end
 
@@ -76,7 +76,7 @@ function TestSettings:Get()
 	--	Gets the stored settings (without any keys from old versions)
 	local t = {}
 	local settings = self.plugin:GetSetting("settings")
-	for _, option in ipairs(options) do
+	for _, option in options do
 		t[option.Key] = self:GetOne(option.Key, settings)
 	end
 	return t
@@ -95,7 +95,7 @@ function TestSettings:SetOne(key, value, settings) -- settings: for this file's 
 end
 function TestSettings:Set(t)
 	local settings = self:Get()
-	for k, v in pairs(t) do
+	for k, v in t do
 		self:SetOne(k, v, settings)
 	end
 end
@@ -113,7 +113,7 @@ function TestSettings:GetPropertyChangedSignal(key)
 	return changedEvent
 end
 function TestSettings:Destroy()
-	for _, event in ipairs(self.changed) do
+	for _, event in self.changed do
 		event:Destroy()
 	end
 end

@@ -68,7 +68,7 @@ function ModuleRun.new(testSettings, config, variant, loadingModuleCOs, processi
 			end
 			if problems then
 				local newResult = Results.Failed.new(("%d cleanups failed"):format(problems))
-				for k, v in pairs(result) do -- transfer dt/name/etc
+				for k, v in result do -- transfer dt/name/etc
 					newResult[k] = v
 				end
 				result = newResult
@@ -160,7 +160,7 @@ function ModuleRun:runTest(testName, data, onFinish)
 	local cos = Coroutines.new()
 	local unrunCleanups = {}
 	local function testCleanup()
-		for cleanup, case in pairs(unrunCleanups) do
+		for cleanup, case in unrunCleanups do
 			NewTry(function(try)
 				-- We don't need to store the error because this test has already failed
 				try:onError(self:genPluginErrHandler(nil, ("[%s.%s cleanup]"):format(GetModuleName(self.moduleScript), case.desc)))
@@ -244,11 +244,11 @@ function ModuleRun:runTest(testName, data, onFinish)
 			end
 		end
 		local ran = {}
-		for i, case in ipairs(cases) do
+		for i, case in cases do
 			ran[i] = true
 			considerRunCase(getCaseName(case, i), case)
 		end
-		for caseName, case in pairs(cases) do
+		for caseName, case in cases do
 			if not ran[caseName] then -- else already ran above
 				considerRunCase(caseName, case)
 			end
@@ -274,7 +274,7 @@ function ModuleRun:runTest(testName, data, onFinish)
 		if #allCases == 1 and not allCases[1].name then -- Test without cases
 			onFinish(allCases[1].result)
 		else
-			for i, case in ipairs(allCases) do
+			for i, case in allCases do
 				caseResults[i] = case.result:WithName(case.name)
 			end
 			onFinish(Results.Completed.new(caseResults))

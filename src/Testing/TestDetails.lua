@@ -11,7 +11,7 @@ local validTestKeys = {
 }
 function TestDetails.HasValidKeys(details)
 	--	returns valid, msg with "%s.%s" at the beginning (expecting module path/name & test)
-	for k, v in pairs(details) do
+	for k, v in details do
 		local reqType = validTestKeys[k]
 		if not reqType then
 			return false, ("%%s.%%s invalid test configuration: %s is not a valid key"):format(k)

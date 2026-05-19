@@ -57,7 +57,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 		function self.finish()
 			local msg = self.report()
 			if msg then
-				error(msg)
+				error(msg, 3)
 			end
 		end
 		function self.report() -- won't error; safe for nested multi-testing
@@ -109,7 +109,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 	local moduleName = GetModuleName(moduleScript)
 	local function runMiscCleanups()
 		local problems = 0
-		for cleanup, traceback in pairs(miscCleanups) do
+		for cleanup, traceback in miscCleanups do
 			local co = coroutine.create(function()
 				cleanup()
 				miscCleanups[cleanup] = nil
@@ -121,7 +121,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 				problems += 1
 			end
 		end
-		for cleanup, traceback in pairs(miscCleanups) do
+		for cleanup, traceback in miscCleanups do
 			print("Cleanup failed to complete immediately | registered at:", traceback:match(".*%S"))
 			problems += 1
 		end

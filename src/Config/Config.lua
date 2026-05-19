@@ -90,6 +90,7 @@ function GetSearchArea.Type.Validate(value)
 	return true, value
 end
 local configOptions = {
+	new("inherits", Bool, true, "If false, config options will not be inherited from parent TestConfigs. Recommended to be false for the top-level TestConfig in an independent module."),
 	new("requireTimeout", Number, 0.5, "A module times out if it hasn't returned from its require after this many seconds"),
 			--"Seconds for a test module to return from its initial require before timing out"),
 	new("initTimeout", Number, 0.5, "A module times out if it hasn't returned from its tests setup after this many seconds"),
@@ -104,7 +105,7 @@ local configOptions = {
 	newFunc("GetSetupFunc", "(For TestService.TestConfig only) Given a module script and its required value, return either the setup function or a falsy value if it is not a test.")
 }
 local default = {}
-for _, o in ipairs(configOptions) do
+for _, o in configOptions do
 	default[o.Name] = o.Default
 end
 Config.__index = function(self, key)
@@ -119,8 +120,8 @@ end
 -- local runAllList = {"requireTimeout", "initTimeout", "timeout"}
 -- function Config.OnConfigChange(testConfig, old, new, testConfigTree, actions)
 --	-- (In future, *could* go through runAllList, then analyze skip/focus to help determine what to rerun)
--- 	for _, name in ipairs(runAllList) do
---		local option = 
+-- 	for _, name in runAllList do
+--		local option =
 -- 		if old[option.Name] ~= new[option.Name] then
 -- 	end
 --	-- etc
@@ -169,7 +170,7 @@ function Config.ProblemsWithUserSearchArea(searchArea)
 	elseif #searchArea == 0 then
 		return "it is empty"
 	else
-		for i, v in ipairs(searchArea) do
+		for i, v in searchArea do
 			if type(v) ~= "string" then
 				return ("[%d] = %s instead of a string"):format(i, v)
 			end
@@ -193,7 +194,7 @@ These configuration scripts must return a table with any of the following fields
 
 return {]=]
 	}
-	for _, details in ipairs(configOptions) do
+	for _, details in configOptions do
 		local name, Type, default, doc = details.Name, details.Type, details.Default, details.Doc
 		configDocs[#configDocs + 1] = ("\t%s = %s,%s"):format(name, Type.ValueToString(default), doc and (" -- %s"):format(doc) or "")
 	end
@@ -209,7 +210,7 @@ function Config.Validate(config)
 	local problems = {} --{"Config failed to validate:"} -- not necessary (see TestConfigTree's setConfig)
 	local newConfig = Config.new()
 	local keysAnalyzed = {}
-	for _, details in ipairs(configOptions) do
+	for _, details in configOptions do
 		local name, Type = details.Name, details.Type
 		if config[name] ~= nil then
 			local success, msg = Type.Validate(config[name])
@@ -221,7 +222,7 @@ function Config.Validate(config)
 		end
 		keysAnalyzed[name] = true
 	end
-	for k, v in pairs(config) do
+	for k, v in config do
 		if not keysAnalyzed[k] then
 			problems[#problems + 1] = ("Unrecognized key '%s'"):format(k)
 		end

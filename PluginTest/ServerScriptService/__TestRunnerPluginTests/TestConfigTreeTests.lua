@@ -16,13 +16,13 @@ local function assertInstancesEqual(name, a, b)
 end
 local function assertTableEquals(name, a, b)
 	if a ~= b then
-		for k, v in pairs(a) do
+		for k, v in a do
 			if b[k] ~= v then
 				progress = -1
 				error(("%s: key '%s': %s ~= %s"):format(name, tostring(k), tostring(v), tostring(b[k])), 2)
 			end
 		end
-		for k, v in pairs(b) do
+		for k, v in b do
 			if a[k] ~= v then
 				progress = -1
 				error(("%s: key '%s': %s ~= %s"):format(name, tostring(k), tostring(a[k]), tostring(v)), 2)
@@ -47,11 +47,11 @@ local function newConfig(parent, s)
 end
 local function override(t, ...)
 	local new = {}
-	for k, v in pairs(t) do
+	for k, v in t do
 		new[k] = v
 	end
-	for _, t2 in ipairs({...}) do
-		for k, v in pairs(t2) do
+	for _, t2 in {...} do
+		for k, v in t2 do
 			new[k] = v
 		end
 	end

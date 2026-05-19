@@ -17,13 +17,13 @@ local function shouldTestModule(config, moduleScript)
 	if focus then
 		if focus[name] then return true end
 		-- NOTE: This won't find it if the name provided is "TestService.Test" since GetModuleName excludes TestService
-		for focusName in pairs(focus) do
+		for focusName in focus do
 			if findWholeWord(name2, focusName) then return true end
 		end
 		return false
 	elseif skip then
 		if skip[name] or skip[name2] then return false end
-		for skipName in pairs(skip) do
+		for skipName in skip do
 			if findWholeWord(name2, skipName) then return false end
 		end
 	end
@@ -61,7 +61,7 @@ end
 function SystemRun:GetResults()
 	local results = {}
 	local moduleResults = self.moduleResults
-	for i, variant in ipairs(self.order) do
+	for i, variant in self.order do
 		results[i] = moduleResults[variant] or error("No result for " .. variant:GetModuleScript():GetFullName())
 	end
 	return Results.new(results)

@@ -26,7 +26,7 @@ function ModuleTestCaseCount:Add(other)
 end
 function ModuleTestCaseCount:Clone()
 	local t = {}
-	for k, v in pairs(self) do
+	for k, v in self do
 		t[k] = v:Clone()
 	end
 	return setmetatable(t, ModuleTestCaseCount)
@@ -41,10 +41,10 @@ end
 function Results:GetModuleTestCaseCount()
 	local moduleCount = Count.For(self)
 	local testCount, caseCount = Count.new(), Count.new()
-	for _, module in ipairs(self) do
+	for _, module in self do
 		if module.subResults then
 			testCount:Add(module:GetSubResultsCount())
-			for _, test in ipairs(module.subResults) do
+			for _, test in module.subResults do
 				if test.subResults then
 					caseCount:Add(test:GetSubResultsCount())
 				end
@@ -141,7 +141,7 @@ function Completed.new(subResults)
 	--	subResults: for modules, list of test results. For tests, list of case results.
 	local count = Count.For(subResults)
 	local dt = 0
-	for _, r in ipairs(subResults) do
+	for _, r in subResults do
 		if r.dt then
 			dt += r.dt
 		end

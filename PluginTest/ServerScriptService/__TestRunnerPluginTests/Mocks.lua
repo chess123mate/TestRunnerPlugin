@@ -115,7 +115,7 @@ function MInstance.new(className)
 			nameToChildren = {}, -- name->List<children>
 			events = {}, -- name -> event for all events (for easy cleanup on Destroy)
 		}, MInstanceMt)
-		for _, name in ipairs({"AncestryChanged", "Changed", "ChildAdded", "ChildRemoved", "DescendantAdded", "DescendantRemoving"}) do
+		for _, name in {"AncestryChanged", "Changed", "ChildAdded", "ChildRemoved", "DescendantAdded", "DescendantRemoving"} do
 			self:addEvent(name)
 		end
 		return self
@@ -138,7 +138,7 @@ function MInstance:addEvent(name)
 end
 function MInstance:replAncestryChanged(child, parent)
 	self.AncestryChanged:Fire(child, parent)
-	for _, child in ipairs(self.children) do
+	for _, child in self.children do
 		child:replAncestryChanged(child, parent)
 	end
 end
@@ -181,7 +181,7 @@ end
 function MInstance:GetChildren() return {unpack(self.children)} end
 function MInstance:GetDescendants(t)
 	t = t or {}
-	for _, c in ipairs(self.children) do
+	for _, c in self.children do
 		t[#t + 1] = c
 		c:GetDescendants(t)
 	end
@@ -216,7 +216,7 @@ function MInstance:IsDescendantOf(value)
 end
 function MInstance:Clone()
 	local new = MInstance.new(self.ClassName)
-	for k, p in pairs(self.props) do
+	for k, p in self.props do
 		if k ~= "Parent" then
 			new.props[k][2](new, p[1](self))
 		end
@@ -251,17 +251,17 @@ end
 function MInstance:Destroy()
 	-- We recurse on children first. This minimizes AncestryChanged activity
 	--	and ensures that DescendantRemoving works correctly.
-	for _, child in ipairs(self.children) do
+	for _, child in self.children do
 		child:Destroy()
 	end
 	self.Parent = nil
-	for _, event in pairs(self.events) do
+	for _, event in self.events do
 		event:Destroy()
 	end
 end
 local function clone(t)
 	local new = {}
-	for k, v in pairs(t) do
+	for k, v in t do
 		new[k] = v
 	end
 	return new
@@ -296,7 +296,7 @@ function Game.new()
 	local self = base()
 	local services = {}
 	self.services = services
-	for _, name in ipairs({"Workspace", "Players", "Lighting", "ReplicatedFirst", "ReplicatedStorage", "ServerScriptService", "ServerStorage", "StarterGui", "StarterPack", "StarterPlayer", "SoundService", "Chat", "LocalizationService", "TestService", "Teams"}) do
+	for _, name in {"Workspace", "Players", "Lighting", "ReplicatedFirst", "ReplicatedStorage", "ServerScriptService", "ServerStorage", "StarterGui", "StarterPack", "StarterPlayer", "SoundService", "Chat", "LocalizationService", "TestService", "Teams"} do
 		local obj = MInstance.safeNew(name)
 		services[name] = obj
 		obj.Parent = self

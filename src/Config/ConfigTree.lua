@@ -11,7 +11,7 @@ function ConfigTree.new(default, getParent)
 	}, ConfigTree)
 	return self
 end
-function ConfigTree:GetFor(value)
+function ConfigTree:GetFor(value) -- Get the config values that should apply to `value` (which can be any instance in the game)
 	local valueToConfig = self.valueToConfig
 	local configs = {}
 	local n = 0
@@ -20,6 +20,9 @@ function ConfigTree:GetFor(value)
 		if config then
 			n += 1
 			configs[n] = config
+			if config.inherits == false then
+				break
+			end
 		end
 		value = self.getParent(value)
 	end
@@ -28,7 +31,7 @@ function ConfigTree:GetFor(value)
 	-- now compile configs
 	local e = {} -- effective config
 	for i = n, 1, -1 do
-		for k, v in pairs(configs[i]) do
+		for k, v in configs[i] do
 			e[k] = v
 		end
 	end

@@ -1,11 +1,10 @@
 -- Freezer: Freezes arbitrary actions while the user is looking at a script
 --	Used to prevent a test the user is editing from requiring after every key-press
 local StudioService = game:GetService("StudioService")
-local stepped = game:GetService("RunService").Stepped
 local Freezer = {}
 Freezer.__index = Freezer
 function Freezer.new(enabled)
-	--	enabled defaults to true
+	--	enabled defaults to true; it controls whether the Freezer operates at all
 	return setmetatable({
 		enabled = enabled ~= nil,
 	}, Freezer)
@@ -48,7 +47,7 @@ function Freezer:Freeze(key, func)
 	end
 	t[key] = func
 	if not self.freezeCon then
-		self.freezeCon = stepped:Connect(function()
+		self.freezeCon = StudioService:GetPropertyChangedSignal("ActiveScript"):Connect(function()
 			self:reEvalFreeze()
 		end)
 	end
@@ -59,7 +58,7 @@ function Freezer:reEvalFreeze()
 		self.freezeCon = nil
 		local t = self.freezeTable
 		self.freezeTable = {}
-		for key, func in pairs(t) do
+		for key, func in t do
 			func(key)
 		end
 	end
