@@ -140,11 +140,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 			end
 		end,
 		__newindex = function(t, key, value)
-			cache[key] = tKeys[key]
-				and error("Cannot override default comparison functions", 2)
-				or type(value) == "function"
-					and genComparisonHandler(value)
-					or error("may only assign comparison functions to 't'", 2)
+			error("Cannot assign to `t`", 2)
 		end,
 	})
 	return t, runMiscCleanups
