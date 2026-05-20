@@ -48,7 +48,7 @@ progress = 5
 assertEquals("Variant not IsDestroyed", not variant:IsDestroyed(), true)
 variant:Destroy()
 assertEquals("Variant IsDestroyed after Destroy", variant:IsDestroyed(), true)
-assertEquals("Variant.Storage does not contain destroyed variant", storage[x], nil)
+assertEquals("Variant.Storage does not contain destroyed variant", storage.main[x], nil)
 
 progress = nil
 end}

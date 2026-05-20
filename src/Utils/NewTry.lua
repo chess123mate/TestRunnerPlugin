@@ -45,7 +45,7 @@ return function(setupTry, func, ...)
 	end, ...)
 	if coroutine.status(co :: thread) ~= "dead" then
 		async = true
-		coroutine.wrap(onAsyncStart)(co) -- guarantees the try returns immediately, as promised
+		task.spawn(onAsyncStart, co) -- guarantees the try returns immediately, as promised
 		if timeout then
 			delay(timeout, function()
 				if completed then return end

@@ -50,7 +50,8 @@ local function override(t, ...)
 	for k, v in t do
 		new[k] = v
 	end
-	for _, t2 in {...} do
+	for i = 1, select("#", ...) do
+		local t2 = select(i, ...)
 		for k, v in t2 do
 			new[k] = v
 		end

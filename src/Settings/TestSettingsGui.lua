@@ -148,7 +148,7 @@ function TestSettingsGui.new(testSettings)
 
 	local rows = {}
 	local optionKeyToCheckbox = {}
-	for i, option in testSettings.Options do
+	for i, option in ipairs(testSettings.Options) do
 		local desc = SettingsCheckboxDesc.new(option.Name, option.Desc, checkboxSize, rowHeight, maxDescTextSize)
 		local cb = Checkbox.new(nil, rowHeight, checkboxSize, desc)
 		local row = cb:GetInstance()

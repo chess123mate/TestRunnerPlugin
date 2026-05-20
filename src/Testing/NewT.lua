@@ -1,6 +1,7 @@
 local Testing = script.Parent
 local modules = Testing.Parent
 local Comparisons = require(Testing.Comparisons)
+local ErrorCoroutines = require(Testing.ErrorCoroutines)
 local Results = require(modules.Results)
 local Descriptions = require(modules.Descriptions)
 local Describe, GetModuleName = Descriptions.Describe, Descriptions.GetModuleName
@@ -108,6 +109,7 @@ local function newT(testSettings, expectedFirst, moduleScript)
 	end
 	local moduleName = GetModuleName(moduleScript)
 	local function runMiscCleanups()
+		ErrorCoroutines.clear()
 		local problems = 0
 		for cleanup, traceback in miscCleanups do
 			local co = coroutine.create(function()

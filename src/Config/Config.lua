@@ -78,7 +78,7 @@ local commonServiceNames = {
 local defaultListenServiceNames = {
 	"TestService",
 }
-local GetSearchArea = newFunc("GetSearchArea", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in.")
+local GetSearchArea = newFunc("GetSearchArea", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in. The default is to only search in TestService.")
 local base = GetSearchArea.Type.Validate
 function GetSearchArea.Type.Validate(value)
 	local success, problem = base(value)
@@ -100,7 +100,7 @@ local configOptions = {
 	new("focus", List, nil, "If any test module names (or paths) are in this list, only they are run, regardless of what Skip contains."),
 	new("expectedFirst", Bool, nil, "If true, it's t.equals(expected, actual) instead of t.equals(actual, expected)"),
 	GetSearchArea,
-	newFunc("SearchShouldRecurse", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in (which you can simply return if you want)."),
+	newFunc("SearchShouldRecurse", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in (which you can simply return if you want). Note: returning false indicates that the object is not a test."),
 	newFunc("MayBeTest", "(For TestService.TestConfig only) Given a module script, return true if it could be a test script. Use this to filter scripts based on their name."),
 	newFunc("GetSetupFunc", "(For TestService.TestConfig only) Given a module script and its required value, return either the setup function or a falsy value if it is not a test.")
 }

@@ -1,5 +1,7 @@
 -- SystemRun runs test modules (as configurations allow) and returns their test results
 
+local KEEP_SKIPPED_IN_PREV = false
+
 local modules = script.Parent
 local ModuleRun = require(modules.ModuleRun)
 local Results = require(modules.Results)
@@ -41,6 +43,9 @@ function SystemRun.new(testSettings)
 		order = {}, -- List<Variant>
 	}, SystemRun)
 end
+function SystemRun.WillRunTest(config, moduleScript)
+	return shouldTestModule(config, moduleScript)
+end
 function SystemRun:AddTest(config, variant)
 	self.order[#self.order + 1] = variant
 	local function onFinish(result)
@@ -58,11 +63,25 @@ end
 function SystemRun:WaitForTestsComplete()
 	self.processingModuleCOs:WaitForComplete()
 end
-function SystemRun:GetResults()
+function SystemRun:GetResults(lastResults) -- lastResults:Results or nil
 	local results = {}
 	local moduleResults = self.moduleResults
 	for i, variant in self.order do
-		results[i] = moduleResults[variant] or error("No result for " .. variant:GetModuleScript():GetFullName())
+		local result = moduleResults[variant] or error("No result for " .. variant:GetModuleScript():GetFullName())
+		-- Ignore skipped results if they were also in the last results
+		if KEEP_SKIPPED_IN_PREV and lastResults and result:Skipped() then
+			local found = false
+			for i, v in lastResults.list do
+				if v.moduleScript == variant:GetModuleScript() then
+					found = true
+					break
+				end
+			end
+			if found then
+				continue
+			end
+		end
+		table.insert(results, result)
 	end
 	return Results.new(results)
 end

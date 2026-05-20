@@ -10,22 +10,22 @@ local function filterOldResults(oldResults, results)
 	--	Returns nil if it's an empty list
 	if not oldResults then return nil end
 	local inCur = {}
-	for _, result in results do
+	for _, result in results.list do
 		inCur[GetModuleName(result.moduleScript)] = true
 	end
-	local new = Results.new()
-	for _, result in oldResults do
+	local new = {}
+	for _, result in oldResults.list do
 		if not inCur[GetModuleName(result.moduleScript)] then
 			new[#new + 1] = result
 		end
 	end
-	return #new > 0 and new or nil
+	return if #new > 0 then Results.new(new) else nil
 end
 function Report.new(testSettings, results, oldResults, --[[requireTime, setupTime, runTime,]] totalTime)
 	return setmetatable({
 		testSettings = testSettings,
-		results = results, -- List<Result>
-		oldResults = filterOldResults(oldResults, results), -- oldResults:Results that does not contain any no-longer-test module results
+		results = results, -- :Results
+		oldResults = filterOldResults(oldResults, results), --:Results that does not contain any no-longer-test module results
 		-- requireTime = requireTime,
 		-- setupTime = setupTime,
 		-- runTime = runTime,
@@ -133,11 +133,12 @@ function Report:PrintReport()
 	--	Note: does not contain summary (which should be printed after)
 	local results = self.results :: {}
 	print() -- Spacing
-	if #results == 0 then
+	local oldResults = self.oldResults
+	local noResults = #results.list == 0
+	if noResults and not oldResults then
 		print("TestRunner: no modules detected")
 		return
 	end
-	local oldResults = self.oldResults
 	local hidePassedModules = self.testSettings.hidePassedOnFailure
 	local curWentWrong, oldWentWrong, anyFailed
 	if hidePassedModules then
@@ -151,19 +152,21 @@ function Report:PrintReport()
 	if oldResults then
 		if not hidePassedModules or oldWentWrong then -- either all are printed or we have at least 1 failed
 			print("Previous:")
-			for _, module in oldResults do
+			for _, module in oldResults.list do
 				if not hidePassedModules or module:Failed() then
 					self:printReport(module)
 				end
 			end
 		end
+		if noResults then return end
 		print("Latest:")
 	else
+		if noResults then return end
 		print("Report:")
 	end
 	-- at this point, if all new ones succeeded, disregard hidePassedModules
 	if not curWentWrong then hidePassedModules = false end
-	for _, module in results do
+	for _, module in results.list do
 		if not hidePassedModules or module:Failed() then
 			self:printReport(module)
 		end

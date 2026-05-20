@@ -162,6 +162,7 @@ local function tryRunningTests()
 	local folder = game:GetService("ServerScriptService"):FindFirstChild("__TestRunnerPluginTests")
 	if not folder then return end
 	testVariants = testVariants or require(modules.Variant).Storage.new()
+	testVariants.allowTSOverride = testSettings.supportRobloxTS
 	for _, obj in folder:GetChildren() do
 		if obj:IsA("ModuleScript") then
 			local variant = testVariants:Get(obj)

@@ -244,7 +244,7 @@ function ModuleRun:runTest(testName, data, onFinish)
 			end
 		end
 		local ran = {}
-		for i, case in cases do
+		for i, case in ipairs(cases) do
 			ran[i] = true
 			considerRunCase(getCaseName(case, i), case)
 		end

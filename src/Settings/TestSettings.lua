@@ -37,7 +37,7 @@ local options = {
 	new("hidePassedOnFailure", Bool, true, "(For reports) If true and at least one test fails, passing modules will be hidden (making it easier to read errors/output)"),
 	new("alwaysShowTests", Bool, false, "(For reports) Always show a module's tests, even if all of them succeeded"),
 	new("alwaysShowCases", Bool, false, "(For reports) Always show a test's cases, even if all of them succeeded"),
-	new("supportRobloxTS", Bool, true, "Reset values associated with Instances in _G before running tests (required for Roblox-TS)."),
+	new("supportRobloxTS", Bool, true, "Reset values associated with Instances in _G before running tests; intercept TS.import for dependency analysis (required for Roblox-TS)."),
 }
 for _, option in options do
 	options[option.Key] = option
@@ -76,7 +76,7 @@ function TestSettings:Get()
 	--	Gets the stored settings (without any keys from old versions)
 	local t = {}
 	local settings = self.plugin:GetSetting("settings")
-	for _, option in options do
+	for _, option in ipairs(options) do
 		t[option.Key] = self:GetOne(option.Key, settings)
 	end
 	return t

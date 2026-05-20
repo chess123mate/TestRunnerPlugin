@@ -11,7 +11,8 @@ Main API:
 
 local modules = script.Parent
 local Descriptions = require(modules.Descriptions)
-local GetModuleName = Descriptions.GetModuleName
+local	GetModuleName = Descriptions.GetModuleName
+local ErrorCoroutines = require(modules.Testing.ErrorCoroutines)
 local Utils = modules.Utils
 local NewTry = require(Utils.NewTry)
 local PluginErrHandler = require(Utils.PluginErrHandler)
@@ -25,33 +26,61 @@ Variant.__index = Variant
 
 local variantCode = "return function(script, require) %s\nend" -- must have 'end' on new line in case there's a comment on the last line
 
+local tsFullName = "ReplicatedStorage.rbxts_include.RuntimeLib"
+local tsVariantCode = [[return function(script, require, addDep)
+local function main()
+%s`end
+local TS = main()
+local base = TS.import
+function TS.import(context, module, ...)
+	for i = 1, select("#", ...) do
+		module = module:WaitForChild((select(i, ...)))
+	end
+	if module.ClassName == "ModuleScript" then
+		addDep(context, module)
+	end
+	return base(context, module)
+end
+return TS
+
+end]]
+tsVariantCode = tsVariantCode:gsub("\n+", " "):gsub("`", "\n") -- ensure that line numbers align
+
 local VariantStorage = {}
 Variant.Storage = VariantStorage
 VariantStorage.__index = VariantStorage
 local variantStorageIsTemporaryScript = {} -- VariantStorage -> isTemporaryScript
 local never = function() end
-function VariantStorage.new(storage, isTemporaryScript)
-	--	You can perform `for moduleScript, variant in storage do` on this class
+function VariantStorage.new(storage, isTemporaryScript, allowTSOverride)
+	--	You can perform `for moduleScript, variant in storage.main do` on this class
 	--	isTemporaryScript:function(moduleScript)->true if the script is temporary and should not invalidate other scripts
 	--		It is assumed that a script can become non-temporary and so it is invoked as needed for each module script
 	--		It defaults to assuming that scripts are never temporary
-	local self = setmetatable(storage or {}, VariantStorage)
+	local self = setmetatable({
+		main = storage or {}, -- moduleScript -> Variant
+		allowTSOverride = allowTSOverride, -- can be modified externally
+	}, VariantStorage)
 	variantStorageIsTemporaryScript[self] = isTemporaryScript or never
 	return self
 end
+function VariantStorage:IsTSScript(fullName) -- if we need any more complexity than this, just pass 'settings' into all variants (and move this fn to Variant)
+	return self.allowTSOverride and fullName == tsFullName
+	-- return self.allowTSOverride and (fullName == tsFullName or fullName == "TestService.TSStyle.TS") -- this line should only be enabled while testing dependencies for TS-style imports
+end
 function VariantStorage:Get(moduleScript)
-	local variant = self[moduleScript]
+	local main = self.main
+	local variant = main[moduleScript]
 	if not variant then
 		variant = Variant.new(self, moduleScript)
-		self[moduleScript] = variant
+		main[moduleScript] = variant
 	end
 	return variant
 end
 function VariantStorage:Remove(moduleScript) -- Should only be called by Variant:Destroy()
-	self[moduleScript] = nil
+	self.main[moduleScript] = nil
 end
 function VariantStorage:Destroy()
-	for _, variant in self do
+	for _, variant in self.main do
 		variant:Destroy()
 	end
 	variantStorageIsTemporaryScript[self] = nil
@@ -145,7 +174,7 @@ end
 function Variant:isTemporary()
 	return variantStorageIsTemporaryScript[self.variantStorage](self.moduleScript)
 end
-function Variant:addDependencyAndRequire(moduleScript)
+function Variant:addDependency(moduleScript)
 	local variant = self.variantStorage:Get(moduleScript)
 	if variant ~= self and not self.dependencies[variant] then -- either condition could occur with circular requires
 		self.dependencies[variant] = variant.Invalidated:Connect(function()
@@ -154,6 +183,10 @@ function Variant:addDependencyAndRequire(moduleScript)
 			end
 		end)
 	end
+	return variant
+end
+function Variant:addDependencyAndRequire(moduleScript)
+	local variant = self:addDependency(moduleScript)
 	return variant:Require(nil, self)
 end
 --[[
@@ -203,18 +236,13 @@ function Variant:performRequire()
 			self.variant:Destroy()
 		end
 		local variant = Instance.new("ModuleScript")
-		self.variant = variant
 		variant.Name = self.moduleScript:GetFullName()
-		variant.Source = variantCode:format(self.moduleScript.Source)
-		local function newRequire(what)
-			if self.destroyed or self.variant ~= variant then
-				self:neverReturn()
-			end
-			if typeof(what) == "Instance" and what:IsA("ModuleScript") then
-				return self:addDependencyAndRequire(what)
-			else
-				error("TestRunnerPlugin does not support non-ModuleScript requires", 2)
-			end
+		self.variant = variant
+		local isTS = self.variantStorage:IsTSScript(variant.Name)
+		if isTS then
+			variant.Source = tsVariantCode:format(self.moduleScript.Source)
+		else
+			variant.Source = variantCode:format(self.moduleScript.Source)
 		end
 		local function handle(...)
 			if select("#", ...) ~= 1 then
@@ -223,7 +251,45 @@ function Variant:performRequire()
 			end
 			return false, (...)
 		end
-		return handle(require(self.variant :: Instance)(self.moduleScript, newRequire))
+		if isTS then
+			local requiringVariant -- Set to a Variant in addDep, then cleared in the call to require. There should be 1 require call for every addDep (ignoring error cases).
+			-- newRequire is identical to the standard case except that if requiringVariant, we want to *not* add dependencies
+			local function newRequire(what)
+				if self.destroyed or self.variant ~= variant then
+					self:neverReturn()
+				end
+				if typeof(what) == "Instance" and what:IsA("ModuleScript") then
+					if requiringVariant then
+						local variant = self.variantStorage:Get(what)
+						local val = requiringVariant
+						requiringVariant = nil
+						return variant:Require(nil, val)
+					else
+						return self:addDependencyAndRequire(what)
+					end
+				else
+					error("TestRunnerPlugin does not support non-ModuleScript requires", 2)
+				end
+			end
+			local function addDep(context, module)
+				-- Because we pass in the moduleScript as script, context will be the real moduleScript
+				requiringVariant = self.variantStorage:Get(context)
+				requiringVariant:addDependency(module)
+			end
+			return handle(require(self.variant :: Instance)(self.moduleScript, newRequire, addDep))
+		else
+			local function newRequire(what)
+				if self.destroyed or self.variant ~= variant then
+					self:neverReturn()
+				end
+				if typeof(what) == "Instance" and what:IsA("ModuleScript") then
+					return self:addDependencyAndRequire(what)
+				else
+					error("TestRunnerPlugin does not support non-ModuleScript requires", 2)
+				end
+			end
+			return handle(require(self.variant :: Instance)(self.moduleScript, newRequire))
+		end
 	end
 end
 local continueUserErrorAddTraceback = PluginErrHandler.GenContinueUserErrorAddTraceback(pluginName)
@@ -233,6 +299,7 @@ function Variant:tryRequire(timeout, requiringVariant)
 	end
 	local v = self.version
 	local errMsg -- set to what error message to return (if something goes wrong)
+	local co = coroutine.running()
 	NewTry(function(try)
 		try
 			:onSuccess(function(alreadyErrored, value)
@@ -246,24 +313,29 @@ function Variant:tryRequire(timeout, requiringVariant)
 					if requiringVariant then
 						requiringVariant.incomingRequireError = value
 					end
-					pluginErrHandlerDepth3(errMsg, true)
+					if not ErrorCoroutines.shouldIgnoreErrors(co) then
+						pluginErrHandlerDepth3(errMsg, true)
+					end
 				else
 					self.requiredValue = value
 				end
 			end)
 			:onError(function(msg)
 				if v ~= self.version then self:neverReturn() end
+				local show = not ErrorCoroutines.shouldIgnoreErrors(co)
 				-- As variants require each other, incomingRequireError will be nil for the first "top level" error, then true just long enough to pass the error backwards through the chain without emitting more red text
 				if self.incomingRequireError then
 					self.incomingRequireError = nil
-					continueUserErrorAddTraceback(debug.traceback("", 2))
+					if show then
+						continueUserErrorAddTraceback(debug.traceback("", 2))
+					end
 					errMsg = msg
 						:gsub("^.-TestRunnerPlugin%.Variant:[^:]-:%s*(.*)", "%1")
 						:gsub("StarterPlayer%.StarterPlayerScripts%.", "StarterPlayerScripts.")
 						:gsub("StarterPlayer%.StarterCharacterScripts%.", "StarterCharacterScripts.")
 					self.requiredError = errMsg
 					self.requiredErrorDuringRequire = true
-				else -- top level error
+				elseif show then -- top level error
 					PluginErrHandler.Gen(pluginName, function(msg, b, c, d)
 						self.requiredError = msg
 						errMsg = msg

@@ -132,7 +132,7 @@ function TestConfigTree:GetConfigScriptFor(moduleScript, key)
 end
 function TestConfigTree:Destroy()
 	self.serviceConsCleanup()
-	for con, _ in self.cons do
+	for con in self.cons do
 		con:Disconnect()
 	end
 end

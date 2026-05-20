@@ -5,6 +5,7 @@ It runs tests on startup and whenever any of the following change:
 	moduleScript.Source for any test or dependency
 When a test is run, a report is printed automatically.
 ]]
+local ONLY_TEST_UNSKIPPED = true
 
 local modules = script.Parent
 local GetModuleName = require(modules.Descriptions).GetModuleName
@@ -59,17 +60,19 @@ function TestTree.new(testSettings, Report, reInit)
 		return self:isModuleScriptTemporary(moduleScript)
 	end)
 	self.testSettingsMonitor = TestSettingsMonitor.new(testSettings, self)
-	local function updateFreezer()
-		self.freezer:SetEnabled(self.allowFreezer and testSettings.preventRunWhileEditingScripts)
-	end
-	self.testSettingsCon = testSettings:GetPropertyChangedSignal("preventRunWhileEditingScripts"):Connect(updateFreezer)
+	self.testSettingsCon = testSettings:GetPropertyChangedSignal("preventRunWhileEditingScripts"):Connect(function()
+		self:updateFreezer()
+	end)
 	local testConfigTree
 	local MayBeTest
 	local function sourceChanged(moduleScript, variant) -- also works for name changes
 		--	May yield
-		-- Require might yield. As it yields, we don't want it to be considered a test.
+		-- Require might yield. During a yield, we don't want it to be considered a test.
 		self:notATest(moduleScript)
+		local plausibleTests = self.plausibleTests -- note: may be nil during init, where sourceChanged is called for each plausible test. But if the set exists and doesn't contain moduleScript, then this is just a required file, not a test.
+		if plausibleTests and not plausibleTests[moduleScript] then return end
 		if moduleScript.Name == "TestConfig" or not MayBeTest(moduleScript) then return end
+
 		local config = testConfigTree:GetFor(moduleScript)
 		self.requireTracker:Start(moduleScript)
 		local success, value = variant:TryRequire(config.requireTimeout)
@@ -127,10 +130,10 @@ function TestTree.new(testSettings, Report, reInit)
 						return
 					end
 				end
-				if mayHaveChanged("GetSetupFunc") or mayHaveChanged("MayBeTest")  then
+				if mayHaveChanged("GetSetupFunc") or mayHaveChanged("MayBeTest") then
 					-- We need to re-analyze all scripts as if their source changed
 					MayBeTest = new.MayBeTest
-					for moduleScript, variant in self.moduleScriptToVariant do
+					for moduleScript, variant in self.moduleScriptToVariant.main do
 						sourceChanged(moduleScript, variant)
 					end
 				end
@@ -157,7 +160,7 @@ function TestTree.new(testSettings, Report, reInit)
 	-- Setup connections
 	MayBeTest = topLevelConfig.MayBeTest
 	local SearchShouldRecurse = topLevelConfig.SearchShouldRecurse
-	self.serviceConCleanup = ExploreServices(listenServiceNames, function(obj)
+	self.serviceConCleanup, self.plausibleTests = ExploreServices(listenServiceNames, function(obj)
 		if obj:IsA("ModuleScript") and not obj:IsDescendantOf(testRunner) and obj.Name ~= "TestConfig" and MayBeTest(obj) then
 			local variant = self:GetVariant(obj)
 			coroutine.wrap(sourceChanged)(obj, variant)
@@ -224,19 +227,22 @@ end
 function TestTree:GetVariant(moduleScript)
 	return self.moduleScriptToVariant:Get(moduleScript)
 end
+function TestTree:updateFreezer()
+	self.freezer:SetEnabled(self.allowFreezer and self.testSettings.preventRunWhileEditingScripts)
+end
 function TestTree:isModuleScriptTemporary(moduleScript)
 	-- It's temporary if we're in a run and the moduleScript didn't exist before the run started
 	-- Note that it's removed from moduleScriptsAtStartOfRun if its source changes, even during a run
 	return self.moduleScriptsAtStartOfRun and not self.moduleScriptsAtStartOfRun[moduleScript]
 end
-function TestTree:notATest(moduleScript)
+function TestTree:notATest(moduleScript) -- Record that the moduleScript (might not be) a test. This can be changed later by calling thisIsATest.
 	self.testVariants[moduleScript] = nil
 	self.testSetupFunc[moduleScript] = nil
 	self:removeFromQueue(moduleScript)
 end
 function TestTree:thisIsATest(moduleScript, setupFunc)
 	if self.testVariants[moduleScript] then return end -- already known to be a test
-	self.testVariants[moduleScript] = self.moduleScriptToVariant[moduleScript]
+	self.testVariants[moduleScript] = self.moduleScriptToVariant.main[moduleScript]
 	self.testSetupFunc[moduleScript] = setupFunc
 	self:addToQueue(moduleScript)
 end
@@ -246,7 +252,15 @@ function TestTree:addToQueue(moduleScript)
 	if not queue[moduleScript] then
 		queue[moduleScript] = true
 		queue[#queue + 1] = moduleScript
-		self:considerStartTestRun(QUEUED_TESTS)
+		if ONLY_TEST_UNSKIPPED then
+			-- Only run a round of testing if we aren't going to skip this test
+			local config = self.testConfigTree:GetFor(moduleScript)
+			if SystemRun.WillRunTest(config, moduleScript) then
+				self:considerStartTestRun(QUEUED_TESTS)
+			end
+		else
+			self:considerStartTestRun(QUEUED_TESTS)
+		end
 	end
 end
 function TestTree:removeFromQueue(moduleScript)
@@ -265,11 +279,11 @@ function TestTree:considerStartTestRun(level, suppressMandatoryWait)
 	end
 	local wasQueued = self.queued
 	self.queued = level
-	-- We often want to wait at least a moment before running tests to allow all script edits to be registered
-	if wasQueued then return end -- we already have a thread in continueQueue
 	if level == ALL_TESTS and next(self.queue) then -- reset queue since we'll be testing all of them
 		self.queue = {}
 	end
+	if wasQueued then return end -- we already have a thread in continueQueue
+	-- We often want to wait at least a moment before running tests to allow all script edits to be registered
 	if suppressMandatoryWait then
 		coroutine.wrap(self.waitForTests)(self)
 	else
@@ -282,7 +296,7 @@ function TestTree:considerStartTestRun(level, suppressMandatoryWait)
 end
 function TestTree:waitForTests()
 	--	Wait until the tests that we want to run have finished being required
-	while self.queued == QUEUED_TESTS and self.requireTracker:WaitOnList(self.queue, function() return self.queue ~= QUEUED_TESTS end) do
+	while self.queued == QUEUED_TESTS and self.requireTracker:WaitOnList(self.queue, function() return self.queued ~= QUEUED_TESTS end) do
 		-- WaitOnList returns whether we waited, so we keep waiting on 'queue' in case more are added over time
 		--	We provide a cancel function for WaitOnList so that if we switch to ALL_TESTS, we can just use the :Wait() function (which is more efficient)
 	end
@@ -310,7 +324,7 @@ function TestTree:runQueuedTests()
 	local queue = self.queue
 	self.queue = {}
 	self:performRun(function(addTest)
-		for _, moduleScript in queue do
+		for _, moduleScript in ipairs(queue) do -- queue is a set & list
 			addTest(moduleScript)
 		end
 	end)
@@ -329,29 +343,29 @@ local function cloneMSE(t)
 	return new
 end
 local function filterResultsForNonTests(results, testVariants)
-	local new = Results.new()
+	local new = {}
 	local n = 0
-	for _, m in results do
+	for _, m in results.list do
 		if testVariants[m.moduleScript] then -- Only keep it if it's still a valid test
 			n += 1
 			new[n] = m
 		end
 	end
-	return new
+	return Results.new(new)
 end
 local function newLastResults(lastResults, results, testVariants)
 	if lastResults then -- Merge results into lastResults
-		local new = Results.new()
+		local new = {}
 		local n = 0
 		local moduleScriptToResult = {}
 		-- Store results in moduleScriptToResult
 		-- Then use that to update the "new" lastResults
 		-- Remove it from moduleScriptToResult if it's been dealt with
 		-- Add any remaining moduleScriptToResult to "new" in the order they appear in results
-		for _, m in results do
+		for _, m in results.list do
 			moduleScriptToResult[m.moduleScript] = m
 		end
-		for _, m in lastResults do
+		for _, m in lastResults.list do
 			if testVariants[m.moduleScript] then -- Only keep it if it's still a valid test
 				n += 1
 				local updated = moduleScriptToResult[m.moduleScript]
@@ -363,13 +377,13 @@ local function newLastResults(lastResults, results, testVariants)
 				end
 			end
 		end
-		for _, m in results do
+		for _, m in results.list do
 			if moduleScriptToResult[m.moduleScript] then
 				n += 1
 				new[n] = m
 			end
 		end
-		return new
+		return Results.new(new)
 	else
 		return results
 	end
@@ -387,9 +401,10 @@ function TestTree:performRun(setupTests)
 	if self.testSettings.clearOutput and self.notFirstTime then
 		LogService:ClearOutput()
 	end
+	self.allowFreezer = true -- see allowFreezer initialization for explanation
+	self:updateFreezer() -- Freezer is disabled when running tests to ensure we require the correct values. This refreezes if necessary.
 	self.notFirstTime = true -- only used for ClearOutput first-time-detection
 	print("-----------Starting Tests-----------")
-	self.allowFreezer = true -- see allowFreezer initialization for explanation
 	local start = os.clock()
 	self.moduleScriptsAtStartOfRun = cloneMSE(self.moduleScriptExists)
 	local currentRun = SystemRun.new(self.testSettings)
@@ -406,8 +421,8 @@ function TestTree:performRun(setupTests)
 	currentRun:WaitForTestsComplete()
 	local runTime = os.clock() - s
 	if num ~= self.testRunNum then return end -- Already queueing for or running new test run, so don't print the results of this run
-	local results = currentRun:GetResults()
 	local lastResults = self.lastResults
+	local results = currentRun:GetResults(lastResults)
 	if lastResults then
 		lastResults = filterResultsForNonTests(lastResults, self.testVariants)
 	end
@@ -425,6 +440,8 @@ function TestTree:performRun(setupTests)
 	self.moduleScriptsAtStartOfRun = nil
 end
 function TestTree:RunAllTests()
+	-- Temporarily disable the freezer so we can require scripts. Note that updateFreezer is called during performRun to restore it to the correct value.
+	self.freezer:Disable()
 	self:considerStartTestRun(ALL_TESTS, true)
 end
 function TestTree:ReprintReport()
@@ -456,7 +473,7 @@ function TestTree:PrintDependencyTree() -- TODO Add a button to print this out?
 	]]
 	print("\nDependency Tree")
 	local seen = {}
-	for _, v in self.moduleScriptToVariant do
+	for _, v in self.moduleScriptToVariant.main do
 		v:PrintDependencies(seen)
 	end
 end

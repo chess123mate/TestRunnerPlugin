@@ -1,7 +1,11 @@
+local ErrorCoroutines = require(script.Parent.ErrorCoroutines)
+local	pcallError = ErrorCoroutines.pcallError
+local describe = require(script.Parent.Parent.Descriptions).Describe
+
 return function(expectedFirst, threshold)
 assert(expectedFirst ~= nil and threshold ~= nil, "Missing arguments")
 
-local describe = require(script.Parent.Parent.Descriptions).Describe
+
 local function appendMsg(msg, ...)
 	local n = select("#", ...)
 	if n == 0 then return msg end
@@ -119,13 +123,13 @@ local c; c = { -- each comparison should return error msg if something is wrong,
 
 	errors = function(func, ...) -- Note: for error functions, the '...' are passed to 'func'; they are not descriptions
 		return c.argIs(func, "function", "Argument to 'errors'") or
-			if pcall(func, ...) then "Function failed to error"
+			if pcallError(func, ...) then "Function failed to error"
 				else nil
 	end,
 	errorsWith = function(errMsgSubstring, func, ...)
 		local v = c.argIs(errMsgSubstring, "string", "1st argument") or c.argIs(func, "function", "2nd argument")
 		if v then return v end
-		local status, msg = pcall(func, ...)
+		local status, msg = pcallError(func, ...)
 		return if status then "Function failed to error"
 			else c.argIs(msg, "string", "Error returned by the function")
 				or (not msg:find(errMsgSubstring) and ("Function did not error with substring '%s'"):format(errMsgSubstring))
@@ -133,7 +137,7 @@ local c; c = { -- each comparison should return error msg if something is wrong,
 	errorIs = function(errChecker, func, ...)
 		local v = c.argIs(errChecker, "function", "1st argument") or c.argIs(func, "function", "2nd argument")
 		if v then return v end
-		local status, msg = pcall(func, ...)
+		local status, msg = pcallError(func, ...)
 		return if status then "Function failed to error"
 			else errChecker(msg)
 	end,
@@ -145,4 +149,6 @@ c.lt = c.lessThan
 c.lte = c.lessThanEqual
 
 return c
+
+
 end

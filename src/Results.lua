@@ -35,13 +35,15 @@ end
 local Results = {}
 Results.__index = Results
 function Results.new(results) -- A list of module results
-	--	You may use a Results as a regular list, though it should only contain module results
-	return setmetatable(results or {}, Results)
+	--	You may use a Results.list as a regular list, though it should only contain module results
+	return setmetatable({
+		list = results or {}
+	}, Results)
 end
 function Results:GetModuleTestCaseCount()
-	local moduleCount = Count.For(self)
+	local moduleCount = Count.For(self.list)
 	local testCount, caseCount = Count.new(), Count.new()
-	for _, module in self do
+	for _, module in self.list do
 		if module.subResults then
 			testCount:Add(module:GetSubResultsCount())
 			for _, test in module.subResults do
