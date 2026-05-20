@@ -74,8 +74,7 @@ function PluginErrHandler.Gen(pluginName, onError, intro, hideOneLiner, hideAll,
 		local niceErr do
 			local path, line, txt = msg:match("^(.-):(%d+): (.*)$")
 			niceErr = path and ("%s - %s:%s"):format(txt, path, line) or msg
-			-- The previous match would get incorrect results if someone
-			--	named their script something like ":123: "
+			-- The previous match would get incorrect results if someone named their script something like ":123: "
 		end
 		if not hideAll and (not hideOneLiner or traceback:find("\n") or getScriptAndLineNum(msg) ~= getScriptAndLineNum(traceback)) then
 			if intro then

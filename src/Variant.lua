@@ -240,7 +240,8 @@ function Variant:performRequire()
 		self.variant = variant
 		local isTS = self.variantStorage:IsTSScript(variant.Name)
 		if isTS then
-			variant.Source = tsVariantCode:format(self.moduleScript.Source)
+			-- Disable the "multiple TS runtimes" check so we don't ever need to clear TS cache
+			variant.Source = tsVariantCode:format((self.moduleScript.Source:gsub("if _G%[module%] then", "if false then")))
 		else
 			variant.Source = variantCode:format(self.moduleScript.Source)
 		end
@@ -336,9 +337,9 @@ function Variant:tryRequire(timeout, requiringVariant)
 					self.requiredError = errMsg
 					self.requiredErrorDuringRequire = true
 				elseif show then -- top level error
-					PluginErrHandler.Gen(pluginName, function(msg, b, c, d)
-						self.requiredError = msg
-						errMsg = msg
+					PluginErrHandler.Gen(pluginName, function(niceErrMsg, msg, traceback)
+						self.requiredError = niceErrMsg
+						errMsg = niceErrMsg
 					end, nil, nil, nil, 3, IsErrorFromPlugin)(msg)
 				end
 				if requiringVariant then

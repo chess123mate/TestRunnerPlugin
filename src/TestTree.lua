@@ -58,7 +58,7 @@ function TestTree.new(testSettings, Report, reInit)
 	}, TestTree)
 	self.moduleScriptToVariant = Variant.Storage.new(nil, function(moduleScript)
 		return self:isModuleScriptTemporary(moduleScript)
-	end)
+	end, testSettings.supportRobloxTS)
 	self.testSettingsMonitor = TestSettingsMonitor.new(testSettings, self)
 	self.testSettingsCon = testSettings:GetPropertyChangedSignal("preventRunWhileEditingScripts"):Connect(function()
 		self:updateFreezer()
@@ -74,6 +74,7 @@ function TestTree.new(testSettings, Report, reInit)
 		if moduleScript.Name == "TestConfig" or not MayBeTest(moduleScript) then return end
 
 		local config = testConfigTree:GetFor(moduleScript)
+		-- self:considerClearTSCache()
 		self.requireTracker:Start(moduleScript)
 		local success, value = variant:TryRequire(config.requireTimeout)
 		if success then
@@ -283,6 +284,7 @@ function TestTree:considerStartTestRun(level, suppressMandatoryWait)
 		self.queue = {}
 	end
 	if wasQueued then return end -- we already have a thread in continueQueue
+	-- self:clearTSCache()
 	-- We often want to wait at least a moment before running tests to allow all script edits to be registered
 	if suppressMandatoryWait then
 		coroutine.wrap(self.waitForTests)(self)
@@ -294,6 +296,24 @@ function TestTree:considerStartTestRun(level, suppressMandatoryWait)
 		end)
 	end
 end
+-- We don't need to clear the TS cache anymore because we're modifying the RuntimeLib script to never error instead, but if we need to return to clearing its cache, this is the code we used.
+-- function TestTree:considerClearTSCache()
+-- 	if not self.testSettings.supportRobloxTS then return end
+-- 	local lastClear = self.lastTSClear or -100
+-- 	if lastClear - os.clock() >= 0.02 then
+-- 		self:clearTSCache()
+-- 	end
+-- end
+-- function TestTree:clearTSCache()
+-- 	if self.testSettings.supportRobloxTS then
+-- 		for k, v in _G do
+-- 			if typeof(k) == "Instance" and type(v) == "table" and v.Promise then
+-- 				_G[k] = nil
+-- 			end
+-- 		end
+-- 		self.lastTSClear = os.clock()
+-- 	end
+-- end
 function TestTree:waitForTests()
 	--	Wait until the tests that we want to run have finished being required
 	while self.queued == QUEUED_TESTS and self.requireTracker:WaitOnList(self.queue, function() return self.queued ~= QUEUED_TESTS end) do
@@ -313,6 +333,7 @@ function TestTree:waitForTests()
 	end
 end
 function TestTree:runAllTests()
+	self.moduleScriptToVariant.allowTSOverride = self.testSettings.supportRobloxTS
 	self:performRun(function(addTest)
 		for moduleScript, variant in self.testVariants do
 			addTest(moduleScript)
@@ -391,13 +412,6 @@ end
 function TestTree:performRun(setupTests)
 	if self.destroyed then return end
 	local num = self.testRunNum
-	if self.testSettings.supportRobloxTS then
-		for k, v in _G do
-			if typeof(k) == "Instance" and type(v) == "table" and v.Promise then
-				_G[k] = nil
-			end
-		end
-	end
 	if self.testSettings.clearOutput and self.notFirstTime then
 		LogService:ClearOutput()
 	end
