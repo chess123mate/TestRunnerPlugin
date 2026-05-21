@@ -162,7 +162,6 @@ local function tryRunningTests()
 	local folder = game:GetService("ServerScriptService"):FindFirstChild("__TestRunnerPluginTests")
 	if not folder then return end
 	testVariants = testVariants or require(modules.Variant).Storage.new()
-	testVariants.allowTSOverride = testSettings.supportRobloxTS
 	for _, obj in folder:GetChildren() do
 		if obj:IsA("ModuleScript") then
 			local variant = testVariants:Get(obj)
@@ -170,7 +169,7 @@ local function tryRunningTests()
 			if success then
 				local test = value[1]
 				if type(test) == "function" then
-					spawn(test) -- each test function can get its own stack trace this way
+					task.spawn(test) -- each test function can get its own stack trace this way
 				end
 			end
 		end

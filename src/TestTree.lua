@@ -35,6 +35,24 @@ local allServiceNames = { -- that show up in explorer where you could add Module
 	"TextChatService", "Chat", "LocalizationService", "TestService"
 }
 
+local function tablesEqual(a, b)
+	if #a ~= #b then return false end
+	for k, v in a do
+		if b[k] ~= v then return false end
+	end
+	for k, v in a do
+		if a[k] ~= v then return false end
+	end
+	return true
+end
+local function listsEqual(a, b)
+	if #a ~= #b then return false end
+	for i, v in a do
+		if b[i] ~= v then return false end
+	end
+	return true
+end
+
 -- Test run types:
 --local NOT_QUEUED = false
 local QUEUED_TESTS = 1
@@ -58,7 +76,7 @@ function TestTree.new(testSettings, Report, reInit)
 	}, TestTree)
 	self.moduleScriptToVariant = Variant.Storage.new(nil, function(moduleScript)
 		return self:isModuleScriptTemporary(moduleScript)
-	end, testSettings.supportRobloxTS)
+	end)
 	self.testSettingsMonitor = TestSettingsMonitor.new(testSettings, self)
 	self.testSettingsCon = testSettings:GetPropertyChangedSignal("preventRunWhileEditingScripts"):Connect(function()
 		self:updateFreezer()
@@ -76,6 +94,7 @@ function TestTree.new(testSettings, Report, reInit)
 		local config = testConfigTree:GetFor(moduleScript)
 		-- self:considerClearTSCache()
 		self.requireTracker:Start(moduleScript)
+		self:waitForDependencyInvalidation() -- Note: we notify the requireTracker that we're about to require before potentially waiting so that waitForTests knows to keep waiting
 		local success, value = variant:TryRequire(config.requireTimeout)
 		if success then
 			local configScript = testConfigTree:GetConfigScriptFor(moduleScript, "GetSetupFunc")
@@ -103,39 +122,61 @@ function TestTree.new(testSettings, Report, reInit)
 		self.requireTracker:Finish(moduleScript)
 	end
 	-- Create testConfigTree
+	local function onConfigInit(testConfig, config)
+		for _, module in config.alwaysRefresh do
+			self:GetVariant(module):ConnectAlwaysRefresh()
+		end
+	end
 	local function onConfigChange(testConfig, old, new)
 		-- could do: if Config.AnyTimeoutChanged
 		local shouldFreeze = self.freezer:ShouldFreeze()
 		local function analyze()
+			local function hasChanged(key)
+				if old[key] == new[key] then return false end
+				local wasDefault = Config.IsDefault(old, key)
+				local isDefault = Config.IsDefault(new, key)
+				-- Note: since old[key] == new[key] didn't occur, we know that the value either wasn't or isn't default
+				if wasDefault ~= isDefault then return true end
+				-- So only case now is that both values are non-default
+				local t = type(new[key])
+				if t ~= type(old[key]) then return true end -- type has changed
+				return if t == "table"
+					then not tablesEqual(old[key], new[key])
+					else true
+			end
 			if testConfig.Parent == TestService then
-				local function mayHaveChanged(key)
-					return not Config.IsDefault(old, key) or not Config.IsDefault(new, key)
-				end
-				if mayHaveChanged("SearchShouldRecurse") then
+				if hasChanged("SearchShouldRecurse") then
 					reInit()
 					return
-				elseif mayHaveChanged("GetSearchArea") then
+				end
+				if hasChanged("GetSearchArea") then
 					local a = Config.GetSearchArea(old)
 					local b = Config.GetSearchAreaFromModule(testConfig)
-					local same = #a == #b
-					if same then
-						for i, v in a do
-							if v ~= b[i] then
-								same = false
-								break
-							end
-						end
-					end
-					if not same then
+					if not listsEqual(a, b) then
 						reInit()
 						return
 					end
 				end
-				if mayHaveChanged("GetSetupFunc") or mayHaveChanged("MayBeTest") then
+				if hasChanged("GetSetupFunc") or hasChanged("MayBeTest") then
 					-- We need to re-analyze all scripts as if their source changed
 					MayBeTest = new.MayBeTest
 					for moduleScript, variant in self.moduleScriptToVariant.main do
 						sourceChanged(moduleScript, variant)
+					end
+				end
+			end
+			if hasChanged("alwaysRefresh") then
+				local newList = new.alwaysRefresh
+				for _, module in old.alwaysRefresh do
+					if table.find(newList, module) then continue end
+					local variant = self:GetVariant(module)
+					variant:DisconnectAlwaysRefresh()
+				end
+				for _, module in newList do
+					local variant = self:GetVariant(module)
+					local wasConnected = variant:ConnectAlwaysRefresh()
+					if not wasConnected then
+						variant:Invalidate()
 					end
 				end
 			end
@@ -156,7 +197,7 @@ function TestTree.new(testSettings, Report, reInit)
 	end
 	local topLevelConfig = Config.GetConfigFromModule(TestService:FindFirstChild("TestConfig"))
 	local listenServiceNames = Config.GetSearchArea(topLevelConfig)
-	testConfigTree = TestConfigTree.new(listenServiceNames, topLevelConfig.SearchShouldRecurse, Config, onConfigChange, self.freezer)
+	testConfigTree = TestConfigTree.new(listenServiceNames, topLevelConfig.SearchShouldRecurse, Config, onConfigChange, onConfigInit, self.freezer)
 	self.testConfigTree = testConfigTree
 	-- Setup connections
 	MayBeTest = topLevelConfig.MayBeTest
@@ -281,10 +322,12 @@ function TestTree:considerStartTestRun(level, suppressMandatoryWait)
 	local wasQueued = self.queued
 	self.queued = level
 	if level == ALL_TESTS and next(self.queue) then -- reset queue since we'll be testing all of them
-		self.queue = {}
+		table.clear(self.queue)
 	end
 	if wasQueued then return end -- we already have a thread in continueQueue
 	-- self:clearTSCache()
+	-- Temporarily disable the freezer so we can require scripts. Note that updateFreezer is called during performRun to restore it to the correct value.
+	self.freezer:Disable()
 	-- We often want to wait at least a moment before running tests to allow all script edits to be registered
 	if suppressMandatoryWait then
 		coroutine.wrap(self.waitForTests)(self)
@@ -298,24 +341,26 @@ function TestTree:considerStartTestRun(level, suppressMandatoryWait)
 end
 -- We don't need to clear the TS cache anymore because we're modifying the RuntimeLib script to never error instead, but if we need to return to clearing its cache, this is the code we used.
 -- function TestTree:considerClearTSCache()
--- 	if not self.testSettings.supportRobloxTS then return end
 -- 	local lastClear = self.lastTSClear or -100
 -- 	if lastClear - os.clock() >= 0.02 then
 -- 		self:clearTSCache()
 -- 	end
 -- end
 -- function TestTree:clearTSCache()
--- 	if self.testSettings.supportRobloxTS then
--- 		for k, v in _G do
--- 			if typeof(k) == "Instance" and type(v) == "table" and v.Promise then
--- 				_G[k] = nil
--- 			end
+-- 	for k, v in _G do
+-- 		if typeof(k) == "Instance" and type(v) == "table" and v.Promise then
+-- 			_G[k] = nil
 -- 		end
--- 		self.lastTSClear = os.clock()
 -- 	end
+-- 	self.lastTSClear = os.clock()
 -- end
-function TestTree:waitForTests()
-	--	Wait until the tests that we want to run have finished being required
+function TestTree:waitForDependencyInvalidation()
+	-- Theoretically we might skip waiting during testRunNum == 1, except testRunNum doesn't get updated until *after* a require completes and confirms that a test has been updated
+	task.defer(coroutine.running())
+	coroutine.yield()
+end
+function TestTree:waitForTests() -- Wait until the tests that we want to run have finished being required
+	-- Wait for requires to complete
 	while self.queued == QUEUED_TESTS and self.requireTracker:WaitOnList(self.queue, function() return self.queued ~= QUEUED_TESTS end) do
 		-- WaitOnList returns whether we waited, so we keep waiting on 'queue' in case more are added over time
 		--	We provide a cancel function for WaitOnList so that if we switch to ALL_TESTS, we can just use the :Wait() function (which is more efficient)
@@ -333,7 +378,6 @@ function TestTree:waitForTests()
 	end
 end
 function TestTree:runAllTests()
-	self.moduleScriptToVariant.allowTSOverride = self.testSettings.supportRobloxTS
 	self:performRun(function(addTest)
 		for moduleScript, variant in self.testVariants do
 			addTest(moduleScript)
@@ -454,8 +498,6 @@ function TestTree:performRun(setupTests)
 	self.moduleScriptsAtStartOfRun = nil
 end
 function TestTree:RunAllTests()
-	-- Temporarily disable the freezer so we can require scripts. Note that updateFreezer is called during performRun to restore it to the correct value.
-	self.freezer:Disable()
 	self:considerStartTestRun(ALL_TESTS, true)
 end
 function TestTree:ReprintReport()
@@ -472,7 +514,7 @@ end
 -- 		end
 -- 	end
 -- end
-function TestTree:PrintDependencyTree() -- TODO Add a button to print this out?
+function TestTree:PrintDependencyTree() -- TODO Add a button or command to print this out (maybe a button in Settings)
 	--[[TODO Could do better tree analysis
 	ex: a>b, b>c, c>d
 	say we start at b>c, then we see c>d, but later we find a>b

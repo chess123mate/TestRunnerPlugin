@@ -19,7 +19,6 @@ function TestSettingsMonitor.new(testSettings, testTree)
 	new("hidePassedOnFailure", reprintReportIfShown)
 	new("alwaysShowTests", reprintReportIfShown)
 	new("alwaysShowCases", reprintReportIfShown)
-	new("supportRobloxTS", runAllTests)
 	return setmetatable({
 		cons = cons
 	}, TestSettingsMonitor)

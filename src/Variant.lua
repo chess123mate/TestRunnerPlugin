@@ -16,6 +16,7 @@ local ErrorCoroutines = require(modules.Testing.ErrorCoroutines)
 local Utils = modules.Utils
 local NewTry = require(Utils.NewTry)
 local PluginErrHandler = require(Utils.PluginErrHandler)
+local Event = require(Utils.Event)
 local IsErrorFromPlugin = require(modules.IsErrorFromPlugin)
 local pluginName = require(modules.PluginConfig).PluginName
 
@@ -51,21 +52,20 @@ Variant.Storage = VariantStorage
 VariantStorage.__index = VariantStorage
 local variantStorageIsTemporaryScript = {} -- VariantStorage -> isTemporaryScript
 local never = function() end
-function VariantStorage.new(storage, isTemporaryScript, allowTSOverride)
+function VariantStorage.new(storage, isTemporaryScript)
 	--	You can perform `for moduleScript, variant in storage.main do` on this class
 	--	isTemporaryScript:function(moduleScript)->true if the script is temporary and should not invalidate other scripts
 	--		It is assumed that a script can become non-temporary and so it is invoked as needed for each module script
 	--		It defaults to assuming that scripts are never temporary
 	local self = setmetatable({
 		main = storage or {}, -- moduleScript -> Variant
-		allowTSOverride = allowTSOverride, -- can be modified externally
 	}, VariantStorage)
 	variantStorageIsTemporaryScript[self] = isTemporaryScript or never
 	return self
 end
-function VariantStorage:IsTSScript(fullName) -- if we need any more complexity than this, just pass 'settings' into all variants (and move this fn to Variant)
-	return self.allowTSOverride and fullName == tsFullName
-	-- return self.allowTSOverride and (fullName == tsFullName or fullName == "TestService.TSStyle.TS") -- this line should only be enabled while testing dependencies for TS-style imports
+function VariantStorage:IsTSScript(fullName)
+	return fullName == tsFullName
+	-- return fullName == tsFullName or fullName == "TestService.TSStyle.TS" -- this line should only be enabled while testing dependencies for TS-style imports
 end
 function VariantStorage:Get(moduleScript)
 	local main = self.main
@@ -96,48 +96,63 @@ function Variant.new(variantStorage, moduleScript)
 		moduleScript = moduleScript or error("moduleScript mandatory", 2),
 		required = false,
 		-- variant:ModuleScript
-		-- requireFinished:BindableEvent (only exists while requiring)
+		-- requireFinished:Event (only exists while requiring)
 		-- requiredValue
 		-- destroyed -- used to prevent Require from calling performRequire after destruction
-		dependencies = {}, -- variant ModuleScript required by this one -> Invalidated connection
+		dependencies = {}, -- variant required by this one -> Invalidated connection
+		dependentInvalidated = Event.new(), -- Normally ignored unless a Variant has ConnectAlwaysRefresh called on it
+		-- alwaysRefreshCon: Connection,
 		version = 0, -- increases whenever the variant changes
+		Invalidated = Event.new(),
+		SourceChanged = Event.new(),
 	}, Variant)
-	self.invalidated = Instance.new("BindableEvent")
-	self.Invalidated = self.invalidated.Event
-	self.sourceChanged = Instance.new("BindableEvent")
-	self.SourceChanged = self.sourceChanged.Event
-	function self.invalidate()
-		if self.required or self.requireFinished then
-			self.version += 1
-			self.required = false
-			self.requiredError = nil
-			self.requiredErrorDuringRequire = nil
-			self.incomingRequireError = nil
-			if self.requireFinished then
-				self.requireFinished:Destroy()
-				self.requireFinished = nil
-			end
-			for _, con in self.dependencies do
-				con:Disconnect()
-			end
-			self.dependencies = {}
-			self.invalidated:Fire()
-		end
-	end
 	self.cons = {
 		moduleScript:GetPropertyChangedSignal("Source"):Connect(function()
-			self.sourceChanged:Fire()
-			self.invalidate()
+			self.SourceChanged:Fire()
+			self:Invalidate()
 		end),
 		moduleScript.AncestryChanged:Connect(function(_, parent)
 			if not parent then
 				self:Destroy()
 			else
-				self.invalidate()
+				self:Invalidate()
 			end
 		end),
 	}
+	self.dependentInvalidated:Connect(function()
+		-- This connection allows AlwaysRefresh scripts to invalidate themselves
+		for variant in self.dependencies do
+			variant:markDependentInvalidated()
+		end
+	end)
 	return self
+end
+function Variant:Invalidate()
+	if self.required or self.requireFinished then
+		self.version += 1
+		self.required = false
+		self.requiredError = nil
+		self.requiredErrorDuringRequire = nil
+		self.incomingRequireError = nil
+		if self.requireFinished then
+			self.requireFinished:Destroy()
+			self.requireFinished = nil
+		end
+		self:markDependentInvalidated()
+		self:resetAllDependencies()
+		table.clear(self.dependencies)
+		self.Invalidated:Fire()
+	end
+end
+function Variant:ForEachDependencyRecursive(fn, seen) -- fn also called on this Variant. fn can return true to break early. The whole function also returns true if `fn` does.
+	seen = seen or {}
+	seen[self] = true
+	if fn(self) then return true end
+	for variant in self.dependencies do
+		if not seen[variant] then
+			if variant:ForEachDependencyRecursive(fn, seen) then return true end
+		end
+	end
 end
 function Variant:PrintDependencies(seen, depth)
 	seen = seen or {}
@@ -156,7 +171,7 @@ function Variant:PrintDependencies(seen, depth)
 		seen[self] and (" (%d)"):format(seen[self]) or ""))
 	if not seen[self] then
 		seen[self] = id
-		for variant, _ in self.dependencies do
+		for variant in self.dependencies do
 			variant:PrintDependencies(seen, depth + 1)
 		end
 	end
@@ -166,9 +181,11 @@ function Variant:IsRequired()
 	return self.required
 end
 function Variant:neverReturn()
-	-- We want to stop the current thread, so we'll yield in the hopes that it's forgotten
-	coroutine.yield() -- Note: Roblox's thread scheduler no longer resumes this
-	-- The yield could return if something was referencing the coroutine and resumed it
+	-- We want to stop the current thread, so we'll yield and attempt to cancel it
+	local co = coroutine.running()
+	task.defer(task.cancel, co)
+	coroutine.yield()
+	-- The yield could return if something was referencing the coroutine and resumed it before it was cancelled
 	error("(Thread attempted to require an expired variant of " .. self.moduleScript:GetFullName() .. "; the thread was resumed by something)")
 end
 function Variant:isTemporary()
@@ -176,10 +193,12 @@ function Variant:isTemporary()
 end
 function Variant:addDependency(moduleScript)
 	local variant = self.variantStorage:Get(moduleScript)
-	if variant ~= self and not self.dependencies[variant] then -- either condition could occur with circular requires
+	if variant ~= self --[[and not self.dependencies[variant] ]] then -- either condition could occur with circular requires
+		-- Note: we actually want to support circular requires, and since calling Invalidate a 2nd time doesn't do anything, we can safely connect dependencies like this
+		-- (If this was a problem, we would also want to check for longer circular require chains)
 		self.dependencies[variant] = variant.Invalidated:Connect(function()
 			if not variant:isTemporary() then
-				self.invalidate()
+				self:Invalidate()
 			end
 		end)
 	end
@@ -224,14 +243,14 @@ function Variant:performRequire()
 	--		on finally: fire it (if it exists) and destroy & remove it (assuming self.version is unchanged)
 	if self.required or self.requireFinished then
 		if self.requireFinished then
-			self.requireFinished.Event:Wait()
+			self.requireFinished:Wait()
 		end
 		if self.requiredError then
 			return self.requiredErrorDuringRequire and "require" or true, self.requiredError
 		end
 		return false, self.requiredValue
 	else
-		self.requireFinished = Instance.new("BindableEvent")
+		self.requireFinished = Event.new()
 		if self.variant then
 			self.variant:Destroy()
 		end
@@ -365,7 +384,7 @@ function Variant:tryRequire(timeout, requiringVariant)
 			end)
 		end
 	end, self.performRequire, self)
-	if self.requireFinished then self.requireFinished.Event:Wait() end
+	if self.requireFinished then self.requireFinished:Wait() end
 	if errMsg then
 		return false, errMsg
 	else
@@ -396,6 +415,32 @@ function Variant:GetRequiredValue()
 		return self.requiredValue
 	end
 end
+
+function Variant:ConnectAlwaysRefresh() -- returns true if already connected
+	if self.alwaysRefreshCon then return true end -- already connected
+	self.alwaysRefreshCon = self.dependentInvalidated:Connect(function()
+		self:Invalidate()
+	end)
+end
+function Variant:DisconnectAlwaysRefresh()
+	if not self.alwaysRefreshCon then return true end
+	self.alwaysRefreshCon:Disconnect()
+	self.alwaysRefreshCon = nil
+end
+function Variant:markDependentInvalidated() -- will trigger dependentInvalidated on the entire tree of dependencies used by this variant
+	if self.dependentInvalidatedRecently then return end
+	self.dependentInvalidatedRecently = true
+	task.defer(function()
+		self.dependentInvalidatedRecently = false
+	end)
+	self.dependentInvalidated:Fire()
+end
+
+function Variant:resetAllDependencies()
+	for variant, con in self.dependencies do
+		con:Disconnect()
+	end
+end
 function Variant:IsDestroyed()
 	return self.destroyed
 end
@@ -403,15 +448,15 @@ function Variant:Destroy()
 	if self.destroyed then return end
 	self.destroyed = true
 	self.variantStorage:Remove(self.moduleScript)
-	self:invalidate() -- this changes version and destroys requireFinished as needed
+	self:Invalidate() -- this changes version and destroys requireFinished as needed
 	if self.variant then
 		self.variant:Destroy()
 	end
-	self.invalidated:Destroy()
-	self.sourceChanged:Destroy()
-	for _, con in self.dependencies do
-		con:Disconnect()
-	end
+	self.Invalidated:Destroy()
+	self.SourceChanged:Destroy()
+	self.dependentInvalidated:Destroy()
+	self:resetAllDependencies()
+	self:DisconnectAlwaysRefresh()
 	for _, con in self.cons do
 		con:Disconnect()
 	end

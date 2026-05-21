@@ -131,7 +131,7 @@ function MInstance.safeNew(className)
 	return class.new()
 end
 function MInstance:addEvent(name)
-	local e = Event()
+	local e = Event.new()
 	self.events[name] = e
 	self[name] = e
 	return e
@@ -236,10 +236,10 @@ end
 function MInstance:GetPropertyChangedSignal(prop)
 	local event = self.events[prop]
 	if not event then
-		event = Instance.new("BindableEvent")
+		event = Event.new()
 		self.events[prop] = event
 	end
-	return event.Event
+	return event
 end
 function MInstance:changed(prop)
 	local event = self.events[prop]
@@ -318,10 +318,10 @@ end
 local ModuleScript = ScriptContainer:Extend("ModuleScript")
 function ModuleScript:Require()
 	if self.requiring then
-		self.requiring.Event:Wait()
+		self.requiring:Wait()
 	end
 	if not self.required or self.requiredSource ~= self.source then
-		self.requiring = Instance.new("BindableEvent")
+		self.requiring = Event.new()
 		local m = Instance.new("ModuleScript")
 		m.Name = self.name
 		m.Source = self.source

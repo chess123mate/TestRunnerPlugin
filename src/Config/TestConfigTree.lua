@@ -14,12 +14,13 @@ local function assertIs(v, t, varName)
 	end
 	return v
 end
-function TestConfigTree.new(listenServiceNames, searchShouldRecurse, Config, onConfigChange, freezer, gameOverride, requireOverride)
+function TestConfigTree.new(listenServiceNames, searchShouldRecurse, Config, onConfigChange, onConfigInit, freezer, gameOverride, requireOverride)
 	--	Config:
 	--		.Default:config
 	--		.Validate(config):issues/nil, newConfig/nil
 	--	onConfigChange:function(testConfig:ModuleScript, oldConfig, newConfig)
-	--		will not fire when the config is first loaded (during TestConfigTree.new)
+	--		will not fire when the config is first loaded (during TestConfigTree.new) (but onConfigInit will)
+	--	onConfigInit:function(testConfig:ModuleScript, config) -- optional
 	--	Does not take ownership of freezer
 	local default = Config.Default
 	if default == nil then error("Config.Default must exist", 2) end
@@ -48,6 +49,8 @@ function TestConfigTree.new(listenServiceNames, searchShouldRecurse, Config, onC
 		local new = tree:GetFor(value)
 		if finishedInit then
 			onConfigChange(obj, old, new)
+		elseif onConfigInit then
+			onConfigInit(obj, new)
 		end
 	end
 	local function setConfig(obj)

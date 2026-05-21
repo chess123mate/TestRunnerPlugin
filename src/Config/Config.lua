@@ -63,6 +63,29 @@ local function newFunc(name, doc)
 		Doc = doc,
 	}
 end
+local ModuleList = ConfigType.new("table", "list/set of modules")
+local base = ModuleList.Validate
+function ModuleList.Validate(value)
+	if typeof(value) == "Instance" then return true, {value} end
+	local goodSoFar, value = base(value)
+	if not goodSoFar then return goodSoFar, value end
+	if next(value) and #value == 0 then -- was given a set
+		-- convert to list
+		local list = {}
+		for v in value do
+			table.insert(list, v)
+		end
+		value = list
+	end
+	-- Make sure that the values of the list are correct
+	for _, v in value do
+		if typeof(v) ~= "Instance" or not v:IsA("ModuleScript") then
+			return false, "%s must contain only ModuleScripts"
+		end
+	end
+	return true, value
+end
+ModuleList.ValueToString = List.ValueToString
 
 local commonServiceNames = {
 	"Workspace",
@@ -98,6 +121,7 @@ local configOptions = {
 	new("timeout", Number, 2, "Seconds for a test to complete before timing out"),
 	new("skip", List, nil, "The list of test module names to skip over. You can specify the module path (up to but *not* including TestService) as well."),
 	new("focus", List, nil, "If any test module names (or paths) are in this list, only they are run, regardless of what Skip contains."),
+	new("alwaysRefresh", ModuleList, {}, "The list of modules that must always be refreshed (due to containing mutable state) whenever it's a dependency of a new test run."),
 	new("expectedFirst", Bool, nil, "If true, it's t.equals(expected, actual) instead of t.equals(actual, expected)"),
 	GetSearchArea,
 	newFunc("SearchShouldRecurse", "(For TestService.TestConfig only) If provided, must return the list of service names to search through for tests. It is provided as argument a list of the service names that scripts are usually stored in (which you can simply return if you want). Note: returning false indicates that the object is not a test."),

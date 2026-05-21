@@ -1,6 +1,7 @@
 return function(t)
 	--	't' may be a list, dictionary, or blend of both (or a single value to turn into a table)
 	--	Converts all integer keys into t[value] = true.
+	--	Mutates and returns t
 	-- Don't add keys while iterating, so store in different list first
 	if type(t) ~= "table" then
 		if t == nil then error("Missing argument 't' to EnsureDictionary") end

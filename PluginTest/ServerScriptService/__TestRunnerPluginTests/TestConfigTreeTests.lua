@@ -77,7 +77,7 @@ local freezer = {
 	RunWhenNotFreezing = function(_, key, func) func(key) end,
 	Freeze = function() error("Shouldn't be calling Freeze") end,
 }
-local tree = TestConfigTree.new(listenServiceNames, SearchShouldRecurse, Config, configChanged, freezer, tGame, tRequire)
+local tree = TestConfigTree.new(listenServiceNames, SearchShouldRecurse, Config, configChanged, nil, freezer, tGame, tRequire)
 progress = 2
 local service = tGame.TestService
 local result = tree:GetFor(service)

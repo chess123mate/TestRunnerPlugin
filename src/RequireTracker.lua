@@ -1,11 +1,12 @@
 -- Track ongoing requires so that they can be waited for before starting a test run
+local Event = require(script.Parent.Utils.Event)
 local RequireTracker = {}
 RequireTracker.__index = RequireTracker
 function RequireTracker.new()
 	return setmetatable({
 		threads = {}, -- moduleScript -> latest coroutine to start requiring
-		finished = Instance.new("BindableEvent"),
-		any = Instance.new("BindableEvent"),
+		finished = Event.new(),
+		any = Event.new(),
 	}, RequireTracker)
 end
 function RequireTracker:remove(moduleScript)
@@ -33,7 +34,7 @@ end
 function RequireTracker:Wait()
 	--	Returns true if waited
 	if next(self.threads) then
-		self.finished.Event:Wait()
+		self.finished:Wait()
 		return true
 	end
 end
@@ -47,7 +48,7 @@ function RequireTracker:WaitOnList(moduleScripts, cancelFunc)
 		for _, obj in moduleScripts do
 			if threads[obj] then
 				found = true
-				while self.any.Event:Wait() ~= obj do end
+				while self.any:Wait() ~= obj do end
 				waited = true
 			end
 		end

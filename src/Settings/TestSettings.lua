@@ -1,6 +1,7 @@
 -- TestSettings: A collection of test-related user settings. (Not called UserSettings because that's a Roblox class.)
+local Event = require(script.Parent.Parent.Utils.Event)
 local function varToEnglish(v)
-	return v:sub(1,1):upper() .. v:sub(2):gsub("([A-Z])", " %1")
+	return v:sub(1, 1):upper() .. v:sub(2):gsub("([A-Z])", " %1")
 end
 local function new(key, optionType, default, desc)
 	return {
@@ -37,7 +38,6 @@ local options = {
 	new("hidePassedOnFailure", Bool, true, "(For reports) If true and at least one test fails, passing modules will be hidden (making it easier to read errors/output)"),
 	new("alwaysShowTests", Bool, false, "(For reports) Always show a module's tests, even if all of them succeeded"),
 	new("alwaysShowCases", Bool, false, "(For reports) Always show a test's cases, even if all of them succeeded"),
-	new("supportRobloxTS", Bool, true, "Reset values associated with Instances in _G before running tests; intercept TS.import for dependency analysis (required for Roblox-TS)."),
 }
 for _, option in options do
 	options[option.Key] = option
@@ -64,7 +64,6 @@ end
 function TestSettings.new(plugin)
 	return setmetatable({
 		plugin = plugin,
-		changed = {},
 		changedEvents = {},
 	}, TestSettings)
 end
@@ -88,7 +87,7 @@ function TestSettings:SetOne(key, value, settings) -- settings: for this file's 
 	settings = settings or self:Get()
 	settings[key] = value
 	self.plugin:SetSetting("settings", settings)
-	local changed = self.changed[key]
+	local changed = self.changedEvents[key]
 	if changed then
 		changed:Fire()
 	end
@@ -105,15 +104,13 @@ function TestSettings:GetPropertyChangedSignal(key)
 		if not options[key] then
 			error("TestSettings." .. tostring(key) .. " not a valid option")
 		end
-		local changed = Instance.new("BindableEvent")
-		changedEvent = changed.Event
-		self.changed[key] = changed
+		changedEvent = Event.new()
 		self.changedEvents[key] = changedEvent
 	end
 	return changedEvent
 end
 function TestSettings:Destroy()
-	for _, event in self.changed do
+	for _, event in self.changedEvents do
 		event:Destroy()
 	end
 end
